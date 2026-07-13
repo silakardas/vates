@@ -10,11 +10,10 @@ import { useStories } from "@/lib/StoryContext";
 import { buildActivity } from "@/lib/activity";
 import { ALTERNATE_PROMPTS, PAST_CHALLENGES, THEMES, TODAYS_PROMPT, randomThemePrompt } from "@/lib/challenges";
 
-const STREAK = 12;
-
 export default function ChallengePage() {
   const router = useRouter();
   const { stories, createStory, updateChapter } = useStories();
+  const streak = stories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0);
   const [prompt, setPrompt] = useState(TODAYS_PROMPT);
   const [promptIndex, setPromptIndex] = useState(-1);
   const [activeTheme, setActiveTheme] = useState<string | null>(null);
@@ -98,12 +97,14 @@ export default function ChallengePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-2xl text-lamp">{STREAK}</span>
-              <span className="font-mono text-xs text-muted uppercase">
-                days in a row
-              </span>
-            </div>
+            {streak > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-2xl text-lamp">{streak}</span>
+                <span className="font-mono text-xs text-muted uppercase">
+                  {streak === 1 ? "day in a row" : "days in a row"}
+                </span>
+              </div>
+            )}
 
             <p className="text-xs text-faint leading-relaxed mt-10 max-w-md">
               Every day gets one prompt. It&apos;s here to knock the dust off,

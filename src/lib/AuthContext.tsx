@@ -9,6 +9,7 @@ type User = {
   name: string;
   email: string;
   joinedAt: number;
+  avatarUrl?: string;
 };
 
 type AuthContextType = {
@@ -17,6 +18,8 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   signup: (email: string, password: string, name: string) => Promise<{ error?: string; needsConfirmation?: boolean }>;
   logout: () => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<{ error?: string }>;
+  updateAvatar: (file: File) => Promise<{ error?: string; url?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -29,6 +32,7 @@ function toUser(session: Session | null): User | null {
     email: email ?? "",
     name: (user_metadata?.name as string | undefined) || (email?.split("@")[0] ?? "writer"),
     joinedAt: created_at ? new Date(created_at).getTime() : Date.now(),
+    avatarUrl: user_metadata?.avatar_url as string | undefined,
   };
 }
 
@@ -77,8 +81,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }
 
+  async function updatePassword(newPassword: string) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return { error: error?.message };
+  }
+
+  async function updateAvatar(file: File) {
+    if (!user) return { error: "Not logged in" };
+
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+
+    if (uploadError) return { error: uploadError.message };
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(path);
+
+    // Cache-bust so the new image shows immediately even if the URL is
+    // otherwise identical to a previously-uploaded avatar.
+    const url = `${publicUrl}?t=${Date.now()}`;
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      data: { avatar_url: url },
+    });
+
+    if (updateError) return { error: updateError.message };
+    return { url };
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, signup, logout, updatePassword, updateAvatar }}
+    >
       {children}
     </AuthContext.Provider>
   );

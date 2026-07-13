@@ -90,9 +90,19 @@ create trigger on_auth_user_created
 
 -- Avatar yüklemeleri için storage bucket.
 -- Bunu da Supabase Dashboard > SQL Editor'de çalıştırın.
-insert into storage.buckets (id, name, public)
-values ('avatars', 'avatars', true)
-on conflict (id) do nothing;
+-- İzin verilen dosya tiplerini ve boyut sınırını burada da (uygulama
+-- kodundaki kontrole ek olarak, savunma derinliği için) zorunlu kılıyoruz.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars',
+  'avatars',
+  true,
+  5242880, -- 5MB, src/lib/avatar.ts içindeki MAX_AVATAR_BYTES ile aynı
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+on conflict (id) do update set
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 drop policy if exists "avatar images are publicly readable" on storage.objects;
 create policy "avatar images are publicly readable"

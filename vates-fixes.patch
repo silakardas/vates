@@ -1,0 +1,247 @@
+diff --git a/src/app/account/page.tsx b/src/app/account/page.tsx
+index f22aa4f..5441a56 100644
+--- a/src/app/account/page.tsx
++++ b/src/app/account/page.tsx
+@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
+ import Header from "@/components/Header";
+ import { useAuth } from "@/lib/AuthContext";
+ import { useStories } from "@/lib/StoryContext";
++import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
+ 
+ function formatJoinDate(timestamp: number) {
+   return new Date(timestamp).toLocaleDateString("en-US", {
+@@ -77,7 +78,11 @@ export default function AccountPage() {
+     const file = e.target.files?.[0];
+     if (!file) return;
+ 
+-    if (file.size > 5 * 1024 * 1024) {
++    if (!ALLOWED_AVATAR_TYPES[file.type]) {
++      setAvatarError("Please upload a JPG, PNG, WEBP, or GIF image.");
++      return;
++    }
++    if (file.size > MAX_AVATAR_BYTES) {
+       setAvatarError("Image must be under 5MB.");
+       return;
+     }
+@@ -158,7 +163,7 @@ export default function AccountPage() {
+           <input
+             ref={fileInputRef}
+             type="file"
+-            accept="image/*"
++            accept={Object.keys(ALLOWED_AVATAR_TYPES).join(",")}
+             onChange={handleAvatarPick}
+             className="hidden"
+           />
+diff --git a/src/app/story/[id]/page.tsx b/src/app/story/[id]/page.tsx
+index 982e56e..da7d7a4 100644
+--- a/src/app/story/[id]/page.tsx
++++ b/src/app/story/[id]/page.tsx
+@@ -8,12 +8,43 @@ import Header from "@/components/Header";
+ import Editor from "@/components/Editor";
+ import EditorSidebar from "@/components/EditorSidebar";
+ import { STATUS_CONFIG } from "@/lib/storyStatus";
++import type { SaveStatus } from "@/lib/StoryContext";
++
++function SaveIndicator({
++  status,
++  onRetry,
++}: {
++  status: SaveStatus | undefined;
++  onRetry: () => void;
++}) {
++  if (!status) {
++    return <span className="text-faint">not saved yet</span>;
++  }
++  if (status.state === "saving") {
++    return <span className="text-faint">saving…</span>;
++  }
++  if (status.state === "error") {
++    return (
++      <span className="text-red-400 flex items-center gap-2">
++        couldn&apos;t save{status.error ? `: ${status.error}` : ""}
++        <button
++          onClick={onRetry}
++          className="underline hover:text-red-300 transition-colors"
++        >
++          retry
++        </button>
++      </span>
++    );
++  }
++  return <span className="text-faint">saved</span>;
++}
+ 
+ export default function StoryPage() {
+   const { id } = useParams<{ id: string }>();
+   const router = useRouter();
+-  const { getStory, updateStory, updateChapter } = useStories();
++  const { getStory, updateStory, updateChapter, getSaveStatus, retrySave } = useStories();
+   const story = getStory(id);
++  const saveStatus = getSaveStatus(id);
+   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
+ 
+   if (!story) {
+@@ -88,9 +119,9 @@ export default function StoryPage() {
+             />
+           </div>
+ 
+-          <p className="mt-4 text-xs font-mono text-muted">
+-            {totalWordCount(story).toLocaleString("en-US")} words total · saved to this
+-            session
++          <p className="mt-4 text-xs font-mono text-muted flex items-center gap-2 flex-wrap">
++            {totalWordCount(story).toLocaleString("en-US")} words total ·{" "}
++            <SaveIndicator status={saveStatus} onRetry={() => retrySave(story.id)} />
+           </p>
+         </main>
+ 
+diff --git a/src/lib/AuthContext.tsx b/src/lib/AuthContext.tsx
+index 8b61971..98c74b3 100644
+--- a/src/lib/AuthContext.tsx
++++ b/src/lib/AuthContext.tsx
+@@ -3,6 +3,7 @@
+ import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+ import type { Session } from "@supabase/supabase-js";
+ import { createClient } from "@/lib/supabase/client";
++import { avatarExtensionFor, MAX_AVATAR_BYTES } from "@/lib/avatar";
+ 
+ type User = {
+   id: string;
+@@ -89,7 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
+   async function updateAvatar(file: File) {
+     if (!user) return { error: "Not logged in" };
+ 
+-    const ext = file.name.split(".").pop();
++    // Derive the extension from the actual MIME type rather than the
++    // user-supplied filename, and reject anything not on the allowlist.
++    const ext = avatarExtensionFor(file.type);
++    if (!ext) {
++      return { error: "Please upload a JPG, PNG, WEBP, or GIF image." };
++    }
++    if (file.size > MAX_AVATAR_BYTES) {
++      return { error: "Image must be under 5MB." };
++    }
++
+     const path = `${user.id}/avatar.${ext}`;
+ 
+     const { error: uploadError } = await supabase.storage
+diff --git a/src/lib/StoryContext.tsx b/src/lib/StoryContext.tsx
+index 1fd6357..5d1a809 100644
+--- a/src/lib/StoryContext.tsx
++++ b/src/lib/StoryContext.tsx
+@@ -97,9 +97,17 @@ function storyToRow(story: Story, ownerId: string) {
+   };
+ }
+ 
++export type SaveStatus = {
++  state: "saving" | "saved" | "error";
++  error?: string;
++  at: number;
++};
++
+ type StoryContextType = {
+   stories: Story[];
+   loading: boolean;
++  getSaveStatus: (id: string) => SaveStatus | undefined;
++  retrySave: (id: string) => void;
+   getStory: (id: string) => Story | undefined;
+   createStory: () => Story;
+   updateStory: (id: string, updates: Partial<Story>) => void;
+@@ -126,6 +134,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
+   // Debounce timers per story id, so fast typing doesn't spam the DB.
+   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+   const deletedIds = useRef<Set<string>>(new Set());
++  const [saveStatuses, setSaveStatuses] = useState<Record<string, SaveStatus>>({});
+ 
+   // Load this user's stories whenever they log in; clear them on logout.
+   useEffect(() => {
+@@ -134,6 +143,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
+     async function load() {
+       if (!user) {
+         setStories([]);
++        setSaveStatuses({});
+         setLoading(false);
+         return;
+       }
+@@ -162,17 +172,42 @@ export function StoryProvider({ children }: { children: ReactNode }) {
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [user?.id]);
+ 
++  async function saveNow(story: Story) {
++    if (!user || deletedIds.current.has(story.id)) return;
++    const id = story.id;
++    setSaveStatuses((prev) => ({ ...prev, [id]: { state: "saving", at: Date.now() } }));
++    const { error } = await supabase.from("stories").upsert(storyToRow(story, user.id));
++    if (error) {
++      console.error("Failed to save story:", error.message);
++      setSaveStatuses((prev) => ({
++        ...prev,
++        [id]: { state: "error", error: error.message, at: Date.now() },
++      }));
++    } else {
++      setSaveStatuses((prev) => ({ ...prev, [id]: { state: "saved", at: Date.now() } }));
++    }
++  }
++
+   function persist(story: Story) {
+     if (!user) return;
+     const id = story.id;
+     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+-    saveTimers.current[id] = setTimeout(async () => {
+-      if (deletedIds.current.has(id)) return;
+-      const { error } = await supabase.from("stories").upsert(storyToRow(story, user.id));
+-      if (error) console.error("Failed to save story:", error.message);
++    saveTimers.current[id] = setTimeout(() => {
++      saveNow(story);
+     }, PERSIST_DEBOUNCE_MS);
+   }
+ 
++  function getSaveStatus(id: string) {
++    return saveStatuses[id];
++  }
++
++  function retrySave(id: string) {
++    const story = stories.find((s) => s.id === id);
++    if (!story) return;
++    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
++    saveNow(story);
++  }
++
+   function getStory(id: string) {
+     return stories.find((s) => s.id === id);
+   }
+@@ -400,6 +435,8 @@ export function StoryProvider({ children }: { children: ReactNode }) {
+       value={{
+         stories,
+         loading,
++        getSaveStatus,
++        retrySave,
+         getStory,
+         createStory,
+         updateStory,
+diff --git a/supabase/schema.sql b/supabase/schema.sql
+index 21fefc7..9271d2d 100644
+--- a/supabase/schema.sql
++++ b/supabase/schema.sql
+@@ -90,9 +90,19 @@ create trigger on_auth_user_created
+ 
+ -- Avatar yüklemeleri için storage bucket.
+ -- Bunu da Supabase Dashboard > SQL Editor'de çalıştırın.
+-insert into storage.buckets (id, name, public)
+-values ('avatars', 'avatars', true)
+-on conflict (id) do nothing;
++-- İzin verilen dosya tiplerini ve boyut sınırını burada da (uygulama
++-- kodundaki kontrole ek olarak, savunma derinliği için) zorunlu kılıyoruz.
++insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
++values (
++  'avatars',
++  'avatars',
++  true,
++  5242880, -- 5MB, src/lib/avatar.ts içindeki MAX_AVATAR_BYTES ile aynı
++  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
++)
++on conflict (id) do update set
++  file_size_limit = excluded.file_size_limit,
++  allowed_mime_types = excluded.allowed_mime_types;
+ 
+ drop policy if exists "avatar images are publicly readable" on storage.objects;
+ create policy "avatar images are publicly readable"

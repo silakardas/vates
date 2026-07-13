@@ -97,9 +97,17 @@ function storyToRow(story: Story, ownerId: string) {
   };
 }
 
+export type SaveStatus = {
+  state: "saving" | "saved" | "error";
+  error?: string;
+  at: number;
+};
+
 type StoryContextType = {
   stories: Story[];
   loading: boolean;
+  getSaveStatus: (id: string) => SaveStatus | undefined;
+  retrySave: (id: string) => void;
   getStory: (id: string) => Story | undefined;
   createStory: () => Story;
   updateStory: (id: string, updates: Partial<Story>) => void;
@@ -126,6 +134,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
   // Debounce timers per story id, so fast typing doesn't spam the DB.
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const deletedIds = useRef<Set<string>>(new Set());
+  const [saveStatuses, setSaveStatuses] = useState<Record<string, SaveStatus>>({});
 
   // Load this user's stories whenever they log in; clear them on logout.
   useEffect(() => {
@@ -134,6 +143,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     async function load() {
       if (!user) {
         setStories([]);
+        setSaveStatuses({});
         setLoading(false);
         return;
       }
@@ -162,15 +172,40 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  async function saveNow(story: Story) {
+    if (!user || deletedIds.current.has(story.id)) return;
+    const id = story.id;
+    setSaveStatuses((prev) => ({ ...prev, [id]: { state: "saving", at: Date.now() } }));
+    const { error } = await supabase.from("stories").upsert(storyToRow(story, user.id));
+    if (error) {
+      console.error("Failed to save story:", error.message);
+      setSaveStatuses((prev) => ({
+        ...prev,
+        [id]: { state: "error", error: error.message, at: Date.now() },
+      }));
+    } else {
+      setSaveStatuses((prev) => ({ ...prev, [id]: { state: "saved", at: Date.now() } }));
+    }
+  }
+
   function persist(story: Story) {
     if (!user) return;
     const id = story.id;
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
-    saveTimers.current[id] = setTimeout(async () => {
-      if (deletedIds.current.has(id)) return;
-      const { error } = await supabase.from("stories").upsert(storyToRow(story, user.id));
-      if (error) console.error("Failed to save story:", error.message);
+    saveTimers.current[id] = setTimeout(() => {
+      saveNow(story);
     }, PERSIST_DEBOUNCE_MS);
+  }
+
+  function getSaveStatus(id: string) {
+    return saveStatuses[id];
+  }
+
+  function retrySave(id: string) {
+    const story = stories.find((s) => s.id === id);
+    if (!story) return;
+    if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
+    saveNow(story);
   }
 
   function getStory(id: string) {
@@ -400,6 +435,8 @@ export function StoryProvider({ children }: { children: ReactNode }) {
       value={{
         stories,
         loading,
+        getSaveStatus,
+        retrySave,
         getStory,
         createStory,
         updateStory,

@@ -15,7 +15,7 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ error?: string }>;
-  signup: (email: string, password: string, name: string) => Promise<{ error?: string }>;
+  signup: (email: string, password: string, name: string) => Promise<{ error?: string; needsConfirmation?: boolean }>;
   logout: () => Promise<void>;
 };
 
@@ -59,12 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signup(email: string, password: string, name: string) {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name } },
     });
-    return { error: error?.message };
+    if (error) return { error: error.message };
+    if (!data.session) {
+      // Account created, but email confirmation is required before a
+      // session exists — don't pretend the user is logged in.
+      return { needsConfirmation: true };
+    }
+    return {};
   }
 
   async function logout() {

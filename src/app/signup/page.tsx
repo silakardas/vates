@@ -11,6 +11,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
@@ -19,10 +20,14 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const { error } = await signup(email, password, name);
+    const result = await signup(email, password, name);
     setSubmitting(false);
-    if (error) {
-      setError(error);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    if (result.needsConfirmation) {
+      setNeedsConfirmation(true);
       return;
     }
     router.push("/workshop");
@@ -48,6 +53,16 @@ export default function SignupPage() {
         </Link>
 
         <div className="bg-panel border border-parchment/10 rounded-2xl px-8 py-9">
+          {needsConfirmation ? (
+            <>
+              <h1 className="font-serif text-2xl text-parchment mb-1.5">Check your email</h1>
+              <p className="text-muted text-sm leading-relaxed">
+                We sent a confirmation link to <strong>{email}</strong>. Click it
+                to activate your account, then come back and log in.
+              </p>
+            </>
+          ) : (
+          <>
           <h1 className="font-serif text-2xl text-parchment mb-1.5">Start your atelier</h1>
           <p className="text-muted text-sm mb-7">
             A quiet place for your stories, just for you.
@@ -120,6 +135,8 @@ export default function SignupPage() {
             </Link>
             .
           </p>
+          </>
+          )}
         </div>
 
         <p className="text-center text-sm text-muted mt-6">

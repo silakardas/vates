@@ -8,12 +8,43 @@ import Header from "@/components/Header";
 import Editor from "@/components/Editor";
 import EditorSidebar from "@/components/EditorSidebar";
 import { STATUS_CONFIG } from "@/lib/storyStatus";
+import type { SaveStatus } from "@/lib/StoryContext";
+
+function SaveIndicator({
+  status,
+  onRetry,
+}: {
+  status: SaveStatus | undefined;
+  onRetry: () => void;
+}) {
+  if (!status) {
+    return <span className="text-faint">not saved yet</span>;
+  }
+  if (status.state === "saving") {
+    return <span className="text-faint">saving…</span>;
+  }
+  if (status.state === "error") {
+    return (
+      <span className="text-red-400 flex items-center gap-2">
+        couldn&apos;t save{status.error ? `: ${status.error}` : ""}
+        <button
+          onClick={onRetry}
+          className="underline hover:text-red-300 transition-colors"
+        >
+          retry
+        </button>
+      </span>
+    );
+  }
+  return <span className="text-faint">saved</span>;
+}
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { getStory, updateStory, updateChapter } = useStories();
+  const { getStory, updateStory, updateChapter, getSaveStatus, retrySave } = useStories();
   const story = getStory(id);
+  const saveStatus = getSaveStatus(id);
   const [activeChapterId, setActiveChapterId] = useState<string | null>(null);
 
   if (!story) {
@@ -88,9 +119,9 @@ export default function StoryPage() {
             />
           </div>
 
-          <p className="mt-4 text-xs font-mono text-muted">
-            {totalWordCount(story).toLocaleString("en-US")} words total · saved to this
-            session
+          <p className="mt-4 text-xs font-mono text-muted flex items-center gap-2 flex-wrap">
+            {totalWordCount(story).toLocaleString("en-US")} words total ·{" "}
+            <SaveIndicator status={saveStatus} onRetry={() => retrySave(story.id)} />
           </p>
         </main>
 

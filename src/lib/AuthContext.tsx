@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { avatarExtensionFor, MAX_AVATAR_BYTES } from "@/lib/avatar";
 
 type User = {
   id: string;
@@ -89,7 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function updateAvatar(file: File) {
     if (!user) return { error: "Not logged in" };
 
-    const ext = file.name.split(".").pop();
+    // Derive the extension from the actual MIME type rather than the
+    // user-supplied filename, and reject anything not on the allowlist.
+    const ext = avatarExtensionFor(file.type);
+    if (!ext) {
+      return { error: "Please upload a JPG, PNG, WEBP, or GIF image." };
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      return { error: "Image must be under 5MB." };
+    }
+
     const path = `${user.id}/avatar.${ext}`;
 
     const { error: uploadError } = await supabase.storage

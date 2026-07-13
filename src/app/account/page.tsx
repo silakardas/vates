@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
+import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
 
 function formatJoinDate(timestamp: number) {
   return new Date(timestamp).toLocaleDateString("en-US", {
@@ -77,7 +78,11 @@ export default function AccountPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
+    if (!ALLOWED_AVATAR_TYPES[file.type]) {
+      setAvatarError("Please upload a JPG, PNG, WEBP, or GIF image.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
       setAvatarError("Image must be under 5MB.");
       return;
     }
@@ -158,7 +163,7 @@ export default function AccountPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={Object.keys(ALLOWED_AVATAR_TYPES).join(",")}
             onChange={handleAvatarPick}
             className="hidden"
           />

@@ -9,6 +9,10 @@ import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
+import { STATUS_CONFIG } from "@/lib/storyStatus";
+import { relativeTime } from "@/lib/timeAgo";
+import { buildActivity } from "@/lib/activity";
+import ActivityStrip from "@/components/ActivityStrip";
 
 function formatJoinDate(timestamp: number) {
   return new Date(timestamp).toLocaleDateString("en-US", {
@@ -67,7 +71,12 @@ export default function AccountPage() {
     },
     {}
   );
-  const favoriteTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+  const favoriteTag = sortedTags[0]?.[0];
+  const topTags = sortedTags.slice(0, 10).map(([tag]) => tag);
+
+  const recentStories = [...stories].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3);
+  const activity = buildActivity(stories, 14);
 
   function handleLogout() {
     logout();
@@ -173,6 +182,9 @@ export default function AccountPage() {
             <p className="text-faint text-xs font-mono mt-1">
               Writing here since {formatJoinDate(user.joinedAt)}
             </p>
+            {user.bio && (
+              <p className="text-muted text-sm italic mt-2 max-w-md">&quot;{user.bio}&quot;</p>
+            )}
           </div>
         </motion.div>
 
@@ -235,6 +247,106 @@ export default function AccountPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
+          className="mb-12"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-mono text-[10px] uppercase tracking-wide text-faint">
+              Recent stories
+            </p>
+            {stories.length > 0 && (
+              <Link
+                href="/workshop"
+                className="text-xs text-muted hover:text-parchment transition-colors"
+              >
+                View all →
+              </Link>
+            )}
+          </div>
+
+          {recentStories.length === 0 ? (
+            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-8 text-center">
+              <p className="text-sm text-muted mb-3">You haven&apos;t started a story yet.</p>
+              <Link href="/workshop" className="text-lamp text-sm hover:underline">
+                Begin your first one →
+              </Link>
+            </div>
+          ) : (
+            <div className="bg-panel border border-parchment/10 rounded-xl divide-y divide-parchment/10 overflow-hidden">
+              {recentStories.map((s) => {
+                const status = STATUS_CONFIG[s.status];
+                return (
+                  <Link
+                    key={s.id}
+                    href={`/story/${s.id}`}
+                    className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-parchment/[0.03] transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className={`text-[10px] font-mono ${status.color}`}>
+                          ● {status.label}
+                        </span>
+                        <span className="text-[10px] font-mono text-faint">
+                          {s.type === "series" ? `${s.chapters.length} ch` : "oneshot"}
+                        </span>
+                      </div>
+                      <p className="font-serif text-parchment truncate">{s.title}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs font-mono text-muted">
+                        {totalWordCount(s).toLocaleString("en-US")} words
+                      </p>
+                      <p className="text-[10px] font-mono text-faint mt-0.5">
+                        edited {relativeTime(s.updatedAt)}
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+
+        {stories.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.25, ease: "easeOut" }}
+            className="mb-12"
+          >
+            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+              Last 14 days
+            </p>
+            <ActivityStrip days={activity} />
+          </motion.div>
+        )}
+
+        {topTags.length > 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
+            className="mb-12"
+          >
+            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+              Tags you write
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {topTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="text-xs font-mono text-muted bg-panel border border-parchment/10 px-3 py-1.5 rounded-full"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.35, ease: "easeOut" }}
           className="mb-6"
         >
           {!showPasswordForm ? (

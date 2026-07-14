@@ -6,8 +6,74 @@ import { motion } from "framer-motion";
 import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
-import { totalWordCount } from "@/lib/types";
+import { Story, totalWordCount } from "@/lib/types";
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
+import { STATUS_CONFIG } from "@/lib/storyStatus";
+
+// Turns editor HTML into clean, readable plain text for the .txt export.
+function stripHtml(html: string): string {
+  return html
+    .replace(/<\/(p|div|h[1-6]|li)>/gi, "\n\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<li>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function buildReadableExport(userName: string, stories: Story[]): string {
+  const lines: string[] = [];
+  lines.push(`${userName}'s Stories`);
+  lines.push(
+    `Exported ${new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })}`
+  );
+  lines.push("=".repeat(60));
+  lines.push("");
+
+  stories.forEach((story) => {
+    lines.push(story.title.toUpperCase());
+    lines.push(
+      `${
+        story.type === "series"
+          ? `Series · ${story.chapters.length} chapter${story.chapters.length === 1 ? "" : "s"}`
+          : "One-shot"
+      } · ${totalWordCount(story).toLocaleString("en-US")} words · ${STATUS_CONFIG[story.status].label}`
+    );
+    if (story.tags.length) lines.push(`Tags: ${story.tags.map((t) => `#${t}`).join(" ")}`);
+    if (story.description) {
+      lines.push("");
+      lines.push(story.description);
+    }
+    lines.push("");
+    lines.push("-".repeat(40));
+    lines.push("");
+
+    story.chapters.forEach((chapter, i) => {
+      if (story.type === "series") {
+        lines.push(`Chapter ${i + 1}: ${chapter.title}`);
+        lines.push("");
+      }
+      lines.push(stripHtml(chapter.content) || "(empty)");
+      lines.push("");
+    });
+
+    lines.push("");
+    lines.push("=".repeat(60));
+    lines.push("");
+  });
+
+  return lines.join("\n");
+}
 
 const GOAL_PRESETS = [200, 300, 500, 1000];
 const TABS = ["Profile", "Writing", "Security", "Export"] as const;
@@ -132,19 +198,29 @@ export default function SettingsPage() {
     setTimeout(() => setPasswordSuccess(false), 1800);
   }
 
-  function handleExport() {
+  function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExportReadable() {
+    const text = buildReadableExport(user!.name, stories);
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    downloadBlob(blob, `${user!.name.trim().replace(/\s+/g, "-").toLowerCase()}-stories-${new Date().toISOString().slice(0, 10)}.txt`);
+  }
+
+  function handleExportJson() {
     const payload = {
       exportedAt: new Date().toISOString(),
       user: { name: user!.name, email: user!.email },
       stories,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `vates-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `vates-export-${new Date().toISOString().slice(0, 10)}.json`);
   }
 
   return (
@@ -340,20 +416,35 @@ export default function SettingsPage() {
               )}
 
               {tab === "Export" && (
-                <div className="space-y-4 max-w-sm">
-                  <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-1">
-                    Export your data
-                  </p>
-                  <p className="text-sm text-muted leading-relaxed">
-                    Download every story, chapter, and character you&apos;ve written as a single
-                    JSON file — a personal backup you can keep, no matter what.
-                  </p>
-                  <button
-                    onClick={handleExport}
-                    className="bg-lamp text-ink text-sm font-semibold px-5 py-2.5 rounded-lg"
-                  >
-                    Download {stories.length} {stories.length === 1 ? "story" : "stories"} (.json)
-                  </button>
+                <div className="space-y-6 max-w-sm">
+                  <div className="space-y-4">
+                    <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-1">
+                      Export your data
+                    </p>
+                    <p className="text-sm text-muted leading-relaxed">
+                      Download every story and chapter you&apos;ve written as a clean, readable
+                      text file — easy to open, print, or keep as a personal archive.
+                    </p>
+                    <button
+                      onClick={handleExportReadable}
+                      className="bg-lamp text-ink text-sm font-semibold px-5 py-2.5 rounded-lg"
+                    >
+                      Download {stories.length} {stories.length === 1 ? "story" : "stories"} (.txt)
+                    </button>
+                  </div>
+
+                  <div className="pt-4 border-t border-parchment/10 space-y-2">
+                    <p className="text-xs text-muted leading-relaxed">
+                      Need the raw data instead — every chapter, version, and character as
+                      structured JSON? Grab the full backup.
+                    </p>
+                    <button
+                      onClick={handleExportJson}
+                      className="text-xs font-mono text-muted hover:text-parchment underline underline-offset-2 transition-colors"
+                    >
+                      Download full backup (.json)
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

@@ -92,16 +92,18 @@ export default function Home() {
                   </button>
                 </p>
               )}
-
-              <button
-                onClick={() => {
-                  const story = createStory();
-                  router.push(`/story/${story.id}`);
-                }}
-                className="mt-10 block mx-auto text-xs font-mono text-faint hover:text-muted transition-colors"
-              >
-                or just start writing, no account needed →
-              </button>
+              
+             {!user && (
+  <button
+    onClick={() => {
+      const story = createStory();
+      router.push(`/story/${story.id}`);
+    }}
+    className="mt-10 block mx-auto text-xs font-mono text-faint hover:text-muted transition-colors"
+  >
+    or just start writing, no account needed →
+  </button>
+)}
             </motion.div>
           )}
         </AnimatePresence>

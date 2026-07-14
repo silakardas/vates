@@ -139,7 +139,7 @@ export default function WordLookup(props: {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.05 }}
-                      className="text-xs bg-parchment/10 px-2 py-1 rounded-full"
+                      className="text-xs text-parchment bg-parchment/10 px-2 py-1 rounded-full"
                     >
                       {s}
                     </motion.span>

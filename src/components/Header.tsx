@@ -39,8 +39,17 @@ export default function Header() {
             href="/account"
             className="flex items-center gap-2 hover:text-parchment transition-colors"
           >
-            <span className="w-6 h-6 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center">
-              {user.name.charAt(0).toUpperCase()}
+            <span className="w-8 h-8 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
+              {user.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.avatarUrl}
+                  alt={user.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                user.name.charAt(0).toUpperCase()
+              )}
             </span>
             {user.name}
           </Link>

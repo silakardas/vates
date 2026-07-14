@@ -11,6 +11,7 @@ type User = {
   email: string;
   joinedAt: number;
   avatarUrl?: string;
+  dailyGoal?: number;
 };
 
 type AuthContextType = {
@@ -21,6 +22,7 @@ type AuthContextType = {
   logout: () => Promise<void>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateAvatar: (file: File) => Promise<{ error?: string; url?: string }>;
+  updateProfile: (updates: { name: string; dailyGoal: number }) => Promise<{ error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -34,6 +36,7 @@ function toUser(session: Session | null): User | null {
     name: (user_metadata?.name as string | undefined) || (email?.split("@")[0] ?? "writer"),
     joinedAt: created_at ? new Date(created_at).getTime() : Date.now(),
     avatarUrl: user_metadata?.avatar_url as string | undefined,
+    dailyGoal: (user_metadata?.daily_goal as number | undefined) ?? 300,
   };
 }
 
@@ -87,6 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message };
   }
 
+  async function updateProfile(updates: { name: string; dailyGoal: number }) {
+    if (!user) return { error: "Not logged in" };
+
+    const { error } = await supabase.auth.updateUser({
+      data: { name: updates.name, daily_goal: updates.dailyGoal },
+    });
+
+    return { error: error?.message };
+  }
+
   async function updateAvatar(file: File) {
     if (!user) return { error: "Not logged in" };
 
@@ -126,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, signup, logout, updatePassword, updateAvatar }}
+      value={{ user, loading, login, signup, logout, updatePassword, updateAvatar, updateProfile }}
     >
       {children}
     </AuthContext.Provider>

@@ -38,9 +38,24 @@ export default function WordLookup(props: {
         );
         if (defRes.ok) {
           const data = await defRes.json();
-          const meaning = data?.[0]?.meanings?.[0];
-          definition = meaning?.definitions?.[0]?.definition;
-          example = meaning?.definitions?.[0]?.example;
+          const meanings = data?.[0]?.meanings ?? [];
+
+          // The first definition of the first meaning rarely has an
+          // "example" field filled in, so the sentence was missing most
+          // of the time. Use it for the definition text, but scan every
+          // definition across every meaning to find the first one that
+          // actually has an example sentence attached.
+          definition = meanings[0]?.definitions?.[0]?.definition;
+
+          for (const meaning of meanings) {
+            const withExample = meaning?.definitions?.find(
+              (d: { example?: string }) => d.example
+            );
+            if (withExample) {
+              example = withExample.example;
+              break;
+            }
+          }
         } else {
           notFound = true;
         }

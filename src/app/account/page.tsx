@@ -143,7 +143,7 @@ export default function AccountPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={avatarUploading}
-            className="relative w-16 h-16 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-2xl flex items-center justify-center overflow-hidden group flex-shrink-0"
+            className="relative w-24 h-24 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-3xl flex items-center justify-center overflow-hidden group flex-shrink-0"
             title="Change avatar"
           >
             {user.avatarUrl ? (
@@ -156,7 +156,7 @@ export default function AccountPage() {
             ) : (
               user.name.charAt(0).toUpperCase()
             )}
-            <span className="absolute inset-0 bg-ink/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[9px] font-mono text-parchment uppercase tracking-wide">
+            <span className="absolute inset-0 bg-ink/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-mono text-parchment uppercase tracking-wide">
               {avatarUploading ? "…" : "Change"}
             </span>
           </button>

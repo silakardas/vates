@@ -5,6 +5,44 @@ import type { Session } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { avatarExtensionFor, MAX_AVATAR_BYTES } from "@/lib/avatar";
 
+// Avatars are always displayed as small circles, but a lot of source
+// photos are either much larger than that (huge upload, slow to load)
+// or an odd aspect ratio that gets awkwardly cropped by object-cover.
+// Normalizing every upload to a fixed, center-cropped square at a
+// resolution well above any on-screen avatar size (crisp even on
+// retina screens) fixes both the "blurry/pixelated" and "off-center"
+// complaints in one pass. Animated GIFs are left untouched so we don't
+// flatten them to a single frame.
+const AVATAR_TARGET_SIZE = 480;
+
+async function normalizeAvatarImage(file: File): Promise<File> {
+  if (file.type === "image/gif") return file;
+
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const sx = (bitmap.width - side) / 2;
+  const sy = (bitmap.height - side) / 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = AVATAR_TARGET_SIZE;
+  canvas.height = AVATAR_TARGET_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, AVATAR_TARGET_SIZE, AVATAR_TARGET_SIZE);
+
+  const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+  const blob: Blob | null = await new Promise((resolve) =>
+    canvas.toBlob(resolve, outputType, 0.92)
+  );
+  if (!blob) return file;
+
+  const ext = outputType === "image/png" ? "png" : "jpg";
+  return new File([blob], `avatar.${ext}`, { type: outputType });
+}
+
 type User = {
   id: string;
   name: string;
@@ -113,11 +151,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: "Image must be under 5MB." };
     }
 
-    const path = `${user.id}/avatar.${ext}`;
+    let upload: File;
+    try {
+      upload = await normalizeAvatarImage(file);
+    } catch {
+      // If normalization fails for any reason, fall back to the
+      // original file rather than blocking the upload entirely.
+      upload = file;
+    }
+    const uploadExt = avatarExtensionFor(upload.type) ?? ext;
+
+    const path = `${user.id}/avatar.${uploadExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(path, file, { upsert: true });
+      .upload(path, upload, { upsert: true });
 
     if (uploadError) return { error: uploadError.message };
 

@@ -39,7 +39,7 @@ export default function Header() {
             href="/account"
             className="flex items-center gap-2 hover:text-parchment transition-colors"
           >
-            <span className="w-8 h-8 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
+            <span className="w-9 h-9 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
               {user.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

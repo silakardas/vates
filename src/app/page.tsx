@@ -111,6 +111,87 @@ export default function Home() {
 
       {!user && (
         <section className="relative px-8 pb-16">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4 mb-10">
+              <span className="h-px flex-1 bg-parchment/10" />
+              <p className="font-mono text-[11px] uppercase tracking-widest text-faint whitespace-nowrap">
+                Why write here
+              </p>
+              <span className="h-px flex-1 bg-parchment/10" />
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2">
+              {[
+                {
+                  icon: (
+                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
+                  ),
+                  title: "A quiet place to write",
+                  copy: "A clean, distraction-free editor with rich text, so the page stays out of your way.",
+                },
+                {
+                  icon: (
+                    <>
+                      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                    </>
+                  ),
+                  title: "Look words up without leaving",
+                  copy: "Select any word for an instant definition, synonyms, and an example sentence — no new tab required.",
+                },
+                {
+                  icon: (
+                    <path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1-1-2-1-3 2 1 3 3 3 5a5 5 0 01-10 0c0-5 4-6 5-11z" />
+                  ),
+                  title: "Daily challenges & streaks",
+                  copy: "A fresh writing prompt every day keeps the habit going, with streaks to track your consistency.",
+                },
+                {
+                  icon: (
+                    <>
+                      <rect x="3" y="10" width="4" height="10" rx="1" />
+                      <rect x="10" y="5" width="4" height="15" rx="1" />
+                      <rect x="17" y="13" width="4" height="7" rx="1" />
+                    </>
+                  ),
+                  title: "Watch your progress add up",
+                  copy: "A workshop dashboard tracks total words, streaks, and an activity map of every day you showed up.",
+                },
+              ].map((feature, i) => (
+                <motion.div
+                  key={feature.title}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.4, delay: i * 0.06, ease: "easeOut" }}
+                  className="bg-ink-soft border border-parchment/10 rounded-xl px-6 py-5 flex gap-4"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#E8A33D"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="flex-shrink-0 mt-1"
+                  >
+                    {feature.icon}
+                  </svg>
+                  <div>
+                    <h3 className="font-serif text-base text-parchment mb-1.5">{feature.title}</h3>
+                    <p className="text-sm text-muted leading-relaxed">{feature.copy}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {!user && (
+        <section className="relative px-8 pb-16">
           <div className="max-w-4xl mx-auto bg-ink-soft border border-parchment/10 rounded-2xl px-8 py-9">
             <p className="font-mono text-[10px] uppercase tracking-widest text-faint mb-7 text-center">
               How it works
@@ -120,17 +201,17 @@ export default function Home() {
                 {
                   n: "01",
                   title: "Begin",
-                  copy: "Jump straight into the editor — no account needed to try it out.",
+                  copy: "Jump straight into the editor and start typing — no account needed to try it out.",
                 },
                 {
                   n: "02",
                   title: "Keep it",
-                  copy: "Make a free account to save your stories, characters, and notes for good.",
+                  copy: "Make a free account in seconds to save your stories, characters, and notes for good.",
                 },
                 {
                   n: "03",
                   title: "Build a habit",
-                  copy: "Follow the daily challenge, keep a streak, and watch your words add up.",
+                  copy: "Follow the daily challenge, keep a streak alive, and watch your words add up over time.",
                 },
               ].map((step, i) => (
                 <motion.div

@@ -1,25 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
+import { useStories } from "@/lib/StoryContext";
+import { totalWordCount } from "@/lib/types";
+import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
 
 const GOAL_PRESETS = [200, 300, 500, 1000];
+const TABS = ["Profile", "Writing", "Security", "Export"] as const;
+type Tab = (typeof TABS)[number];
 
 export default function SettingsPage() {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, updatePassword, updateAvatar } = useAuth();
+  const { stories } = useStories();
+
+  const [tab, setTab] = useState<Tab>("Profile");
 
   const [name, setName] = useState("");
+  const [bio, setBio] = useState("");
   const [dailyGoal, setDailyGoal] = useState(300);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
   useEffect(() => {
     if (user) {
       setName(user.name);
+      setBio(user.bio ?? "");
       setDailyGoal(user.dailyGoal ?? 300);
     }
   }, [user]);
@@ -38,6 +58,9 @@ export default function SettingsPage() {
     );
   }
 
+  const totalWords = stories.reduce((sum, s) => sum + totalWordCount(s), 0);
+  const streak = stories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0);
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -47,140 +70,339 @@ export default function SettingsPage() {
       setError("Display name can't be empty.");
       return;
     }
-    if (dailyGoal < 1) {
-      setError("Daily goal must be at least 1 word.");
-      return;
-    }
 
     setSaving(true);
-    const result = await updateProfile({ name: name.trim(), dailyGoal });
+    const result = await updateProfile({ name: name.trim(), dailyGoal, bio: bio.trim() });
     setSaving(false);
 
     if (result.error) {
       setError(result.error);
       return;
     }
-
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  }
+
+  async function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_AVATAR_TYPES[file.type]) {
+      setAvatarError("Please upload a JPG, PNG, WEBP, or GIF image.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError("Image must be under 5MB.");
+      return;
+    }
+
+    setAvatarError(null);
+    setAvatarUploading(true);
+    const result = await updateAvatar(file);
+    setAvatarUploading(false);
+    if (result.error) setAvatarError(result.error);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords don't match.");
+      return;
+    }
+
+    setPasswordSubmitting(true);
+    const result = await updatePassword(newPassword);
+    setPasswordSubmitting(false);
+
+    if (result.error) {
+      setPasswordError(result.error);
+      return;
+    }
+    setPasswordSuccess(true);
+    setNewPassword("");
+    setConfirmPassword("");
+    setTimeout(() => setPasswordSuccess(false), 1800);
+  }
+
+  function handleExport() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      user: { name: user!.name, email: user!.email },
+      stories,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vates-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
     <>
       <Header />
-      <main className="text-parchment px-8 py-16 max-w-md mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-        >
-          <h1 className="font-serif text-2xl mb-1">Settings</h1>
-          <p className="text-sm text-muted mb-10">
-            Update how Vates greets you and tracks your writing.
-          </p>
-        </motion.div>
+      <main className="text-parchment px-8 py-16 max-w-5xl mx-auto">
+        <h1 className="font-serif text-2xl mb-1">Settings</h1>
+        <p className="text-sm text-muted mb-10">
+          Manage your profile, writing goals, and account.
+        </p>
 
-        <form onSubmit={handleSave} className="space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.05, ease: "easeOut" }}
-            className="bg-panel border border-parchment/10 rounded-xl px-6 py-5"
-          >
-            <p className="font-mono text-[10px] uppercase tracking-widest text-faint mb-4">
-              Profile
-            </p>
-            <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-              Display name
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="What should we call you?"
-              maxLength={40}
-              className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-muted/50"
-            />
-            <div className="flex items-center justify-between mt-2">
-              <p className="text-xs text-muted">Shown on your stories and in the header.</p>
-              <p className="text-[10px] font-mono text-faint">{name.length}/40</p>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-            className="bg-panel border border-parchment/10 rounded-xl px-6 py-5"
-          >
-            <p className="font-mono text-[10px] uppercase tracking-widest text-faint mb-4">
-              Writing goal
-            </p>
-            <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-              Daily word goal
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={dailyGoal}
-              onChange={(e) => setDailyGoal(Number(e.target.value))}
-              className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors"
-            />
-            <div className="flex flex-wrap gap-2 mt-3">
-              {GOAL_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setDailyGoal(preset)}
-                  className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${
-                    dailyGoal === preset
-                      ? "bg-lamp/20 border-lamp/50 text-lamp"
-                      : "border-parchment/10 text-muted hover:text-parchment hover:border-parchment/20"
-                  }`}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-muted mt-3">
-              Used to keep your writing streak going on the workshop dashboard.
-            </p>
-          </motion.div>
-
-          {error && <p className="text-xs text-red-400">{error}</p>}
-          {saved && <p className="text-xs text-completed">Saved.</p>}
-
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-            className="flex items-center gap-4 pt-2"
-          >
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-lamp text-ink text-sm font-semibold px-5 py-2.5 rounded-lg disabled:opacity-60"
-            >
-              {saving ? "Saving…" : "Save changes"}
-            </button>
+        <div className="flex gap-10">
+          {/* Sidebar */}
+          <nav className="w-44 flex-shrink-0 space-y-1">
+            {TABS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors ${
+                  tab === t
+                    ? "bg-lamp/15 text-lamp border border-lamp/30"
+                    : "text-muted hover:text-parchment border border-transparent"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
             <Link
               href="/account"
-              className="text-sm text-muted hover:text-parchment transition-colors"
+              className="block mt-4 px-4 py-2.5 text-xs text-faint hover:text-muted transition-colors"
             >
-              Back to account
+              ← Back to account
             </Link>
-          </motion.div>
+          </nav>
 
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
-            className="pt-4 border-t border-parchment/10"
-          >
-            <p className="text-xs text-muted">
-              More settings — like export and theme options — are on the way.
-            </p>
-          </motion.div>
-        </form>
+          {/* Main panel */}
+          <div className="flex-1 min-w-0 grid gap-8 lg:grid-cols-[1fr_280px]">
+            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6">
+              {tab === "Profile" && (
+                <form onSubmit={handleSave} className="space-y-6">
+                  <div className="flex items-center gap-5">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={avatarUploading}
+                      className="relative w-20 h-20 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-2xl flex items-center justify-center overflow-hidden group flex-shrink-0"
+                    >
+                      {user.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        user.name.charAt(0).toUpperCase()
+                      )}
+                      <span className="absolute inset-0 bg-ink/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-mono text-parchment uppercase">
+                        {avatarUploading ? "…" : "Change"}
+                      </span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={Object.keys(ALLOWED_AVATAR_TYPES).join(",")}
+                      onChange={handleAvatarPick}
+                      className="hidden"
+                    />
+                    <div>
+                      <p className="text-sm text-parchment">Profile photo</p>
+                      {avatarError && <p className="text-xs text-red-400 mt-1">{avatarError}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                      Display name
+                    </label>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      maxLength={40}
+                      className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                      Email
+                    </label>
+                    <input
+                      value={user.email}
+                      disabled
+                      className="w-full bg-ink-soft/50 rounded-lg px-4 py-2.5 outline-none border border-parchment/10 text-muted"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                      Bio
+                    </label>
+                    <textarea
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      maxLength={160}
+                      rows={3}
+                      placeholder="A line about what you write…"
+                      className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none"
+                    />
+                    <p className="text-[10px] font-mono text-faint mt-1">{bio.length}/160</p>
+                  </div>
+
+                  {error && <p className="text-xs text-red-400">{error}</p>}
+                  {saved && <p className="text-xs text-completed">Saved.</p>}
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="bg-lamp text-ink text-sm font-semibold px-5 py-2.5 rounded-lg disabled:opacity-60"
+                  >
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                </form>
+              )}
+
+              {tab === "Writing" && (
+                <form onSubmit={handleSave} className="space-y-4">
+                  <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                    Daily word goal
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={dailyGoal}
+                    onChange={(e) => setDailyGoal(Number(e.target.value))}
+                    className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {GOAL_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setDailyGoal(preset)}
+                        className={`text-xs font-mono px-3 py-1.5 rounded-full border transition-colors ${
+                          dailyGoal === preset
+                            ? "bg-lamp/20 border-lamp/50 text-lamp"
+                            : "border-parchment/10 text-muted hover:text-parchment hover:border-parchment/20"
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  {error && <p className="text-xs text-red-400">{error}</p>}
+                  {saved && <p className="text-xs text-completed">Saved.</p>}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="bg-lamp text-ink text-sm font-semibold px-5 py-2.5 rounded-lg disabled:opacity-60"
+                  >
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                </form>
+              )}
+
+              {tab === "Security" && (
+                <form onSubmit={handlePasswordSubmit} className="space-y-3 max-w-sm">
+                  <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-1">
+                    Change password
+                  </p>
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password"
+                    className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+                  />
+                  <input
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+                  />
+                  {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
+                  {passwordSuccess && <p className="text-xs text-green-400">Password updated.</p>}
+                  <button
+                    type="submit"
+                    disabled={passwordSubmitting}
+                    className="bg-lamp text-ink text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60"
+                  >
+                    {passwordSubmitting ? "Saving…" : "Save password"}
+                  </button>
+                </form>
+              )}
+
+              {tab === "Export" && (
+                <div className="space-y-4 max-w-sm">
+                  <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-1">
+                    Export your data
+                  </p>
+                  <p className="text-sm text-muted leading-relaxed">
+                    Download every story, chapter, and character you&apos;ve written as a single
+                    JSON file — a personal backup you can keep, no matter what.
+                  </p>
+                  <button
+                    onClick={handleExport}
+                    className="bg-lamp text-ink text-sm font-semibold px-5 py-2.5 rounded-lg"
+                  >
+                    Download {stories.length} {stories.length === 1 ? "story" : "stories"} (.json)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Live preview + stats, replaces the blank panel */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="bg-panel border border-parchment/10 rounded-xl px-6 py-6 h-fit"
+            >
+              <p className="font-mono text-[10px] uppercase tracking-widest text-faint mb-5">
+                Preview
+              </p>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {user.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.avatarUrl} alt={name} className="w-full h-full object-cover" />
+                  ) : (
+                    (name || "?").charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-serif text-parchment truncate">{name || "Unnamed"}</p>
+                  <p className="text-xs text-faint truncate">{user.email}</p>
+                </div>
+              </div>
+              <p className="text-sm text-muted italic leading-relaxed mb-6">
+                {bio ? `"${bio}"` : "No bio yet — add one in the Profile tab."}
+              </p>
+
+              <div className="grid grid-cols-3 gap-2 text-center border-t border-parchment/10 pt-4">
+                <div>
+                  <p className="font-mono text-lamp text-lg">{stories.length}</p>
+                  <p className="text-[10px] text-faint">stories</p>
+                </div>
+                <div>
+                  <p className="font-mono text-lamp text-lg">{totalWords.toLocaleString("en-US")}</p>
+                  <p className="text-[10px] text-faint">words</p>
+                </div>
+                <div>
+                  <p className="font-mono text-lamp text-lg">{streak || "—"}</p>
+                  <p className="text-[10px] text-faint">streak</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
       </main>
     </>
   );

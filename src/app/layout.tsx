@@ -22,8 +22,24 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://vates-six.vercel.app"),
   title: "Vates — Writing Atelier",
-  description: "A personal writing space for fiction and fanfic writers.",
+  description: "A daily-prompt writing space for fiction and fanfic writers. No account needed to start.",
+  keywords: ["fanfiction", "creative writing", "writing prompts", "daily writing challenge", "fiction writing app"],
+  openGraph: {
+    title: "Vates — Writing Atelier",
+    description: "A daily-prompt writing space for fiction and fanfic writers. No account needed to start.",
+    url: "https://vates-six.vercel.app",
+    siteName: "Vates",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Vates — Writing Atelier",
+    description: "A daily-prompt writing space for fiction and fanfic writers. No account needed to start.",
+    images: ["/opengraph-image"],
+  },
 };
 
 export default function RootLayout({

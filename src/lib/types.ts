@@ -34,6 +34,7 @@ export type Story = {
   tags: string[];
   status: StoryStatus;
   streak?: number;
+  lastWriteDate?: string; // "YYYY-MM-DD", last calendar day the streak was bumped
   updatedAt: number; // timestamp, used to find "last edited"
   characters: Character[];
   notes: string; // freeform HTML/plain text scratchpad for the story

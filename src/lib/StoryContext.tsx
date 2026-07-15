@@ -5,6 +5,24 @@ import { Story, Chapter, Character, ChapterVersion } from "./types";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 
+// Local (not UTC) calendar date, so a streak doesn't break at midnight UTC
+// for users in other timezones.
+function getLocalDateString(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Whole-day difference between two "YYYY-MM-DD" strings.
+function daysBetween(a: string, b: string): number {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  const da = Date.UTC(ay, am - 1, ad);
+  const db = Date.UTC(by, bm - 1, bd);
+  return Math.round((db - da) / 86_400_000);
+}
+
 function newChapter(title: string): Chapter {
   return {
     id: crypto.randomUUID(),
@@ -42,6 +60,8 @@ function newStory(): Story {
     tags: [],
     status: "inProgress",
     updatedAt: Date.now(),
+    streak: 0,
+    lastWriteDate: undefined,
     chapters: [newChapter("Untitled story")],
     characters: [],
     notes: "",
@@ -58,6 +78,7 @@ type StoryRow = {
   tags: string[];
   status: Story["status"];
   streak: number | null;
+  last_write_date: string | null;
   notes: string;
   chapters: Chapter[];
   characters: Character[];
@@ -73,6 +94,7 @@ function rowToStory(row: StoryRow): Story {
     tags: row.tags ?? [],
     status: row.status,
     streak: row.streak ?? undefined,
+    lastWriteDate: row.last_write_date ?? undefined,
     updatedAt: new Date(row.updated_at).getTime(),
     chapters: row.chapters ?? [],
     characters: row.characters ?? [],
@@ -90,6 +112,7 @@ function storyToRow(story: Story, ownerId: string) {
     tags: story.tags,
     status: story.status,
     streak: story.streak ?? null,
+    last_write_date: story.lastWriteDate ?? null,
     notes: story.notes,
     chapters: story.chapters,
     characters: story.characters,
@@ -248,15 +271,38 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     setStories((prev) =>
       prev.map((s) => {
         if (s.id !== storyId) return s;
+
+        const original = s.chapters.find((c) => c.id === chapterId);
+        const contentChanged =
+          updates.content !== undefined &&
+          original !== undefined &&
+          updates.content !== original.content;
+
+        // Bump the streak at most once per calendar day. A gap of exactly
+        // one day extends it; anything else (including the very first
+        // write) restarts it at 1.
+        let streak = s.streak ?? 0;
+        let lastWriteDate = s.lastWriteDate;
+        if (contentChanged) {
+          const today = getLocalDateString();
+          if (lastWriteDate !== today) {
+            streak =
+              lastWriteDate && daysBetween(lastWriteDate, today) === 1
+                ? streak + 1
+                : 1;
+            lastWriteDate = today;
+          }
+        }
+
         const next = {
           ...s,
           updatedAt: Date.now(),
+          streak,
+          lastWriteDate,
           chapters: s.chapters.map((c) => {
             if (c.id !== chapterId) return c;
 
             let versions = c.versions;
-            const contentChanged =
-              updates.content !== undefined && updates.content !== c.content;
             const hasExistingContent =
               c.content.replace(/<[^>]+>/g, "").trim().length > 0;
 

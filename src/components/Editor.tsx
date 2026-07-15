@@ -8,6 +8,8 @@ import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import FontFamily from "@tiptap/extension-font-family";
 import Placeholder from "@tiptap/extension-placeholder";
+import Link from "@tiptap/extension-link";
+import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useState } from "react";
 import WordLookup from "./WordLookup";
 
@@ -36,6 +38,12 @@ const FONT_SIZES = [
   { label: "Medium", value: "18px" },
   { label: "Large", value: "24px" },
 ];
+const HEADING_OPTIONS = [
+  { label: "Text", value: "paragraph" },
+  { label: "Heading 1", value: "1" },
+  { label: "Heading 2", value: "2" },
+  { label: "Heading 3", value: "3" },
+];
 
 export default function Editor(props: {
   content: string;
@@ -52,6 +60,12 @@ export default function Editor(props: {
       Highlight.configure({ multicolor: true }),
       FontFamily,
       Placeholder.configure({ placeholder: "Start writing..." }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { class: "underline text-[#3D5A80]" },
+      }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
     content: props.content,
     immediatelyRender: false,
@@ -75,6 +89,22 @@ export default function Editor(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.content]);
 
+  function handleSetLink() {
+    if (!editor) return;
+    const previousUrl = editor.getAttributes("link").href as string | undefined;
+    if (previousUrl) {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+    const url = window.prompt("Link URL:", "https://");
+    if (url === null) return;
+    if (url.trim() === "") {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+  }
+
   function handleDoubleClick(e: React.MouseEvent) {
     const selection = window.getSelection();
     const word = selection?.toString().trim();
@@ -93,6 +123,67 @@ export default function Editor(props: {
       className="bg-parchment text-[#3A3226] rounded-lg overflow-hidden shadow-2xl h-full flex flex-col"
     >
       <div className="flex items-center gap-4 px-5 py-3 bg-parchment-dim border-b border-black/10 flex-wrap">
+        <div className="flex items-center gap-1">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => editor.chain().focus().undo().run()}
+            disabled={!editor.can().undo()}
+            title="Undo"
+            className="w-7 h-7 rounded border font-serif text-sm bg-white border-black/15 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↺
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => editor.chain().focus().redo().run()}
+            disabled={!editor.can().redo()}
+            title="Redo"
+            className="w-7 h-7 rounded border font-serif text-sm bg-white border-black/15 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↻
+          </motion.button>
+        </div>
+
+        <div className="w-px h-5 bg-black/15" />
+
+        <div className="flex items-center gap-2">
+          <label className="font-mono text-[10px] uppercase text-[#7A6E58]">Style</label>
+          <select
+            className="font-serif text-sm px-2 py-1 rounded border border-black/15 bg-white cursor-pointer transition-shadow hover:shadow-sm"
+            value={
+              editor.isActive("heading", { level: 1 })
+                ? "1"
+                : editor.isActive("heading", { level: 2 })
+                ? "2"
+                : editor.isActive("heading", { level: 3 })
+                ? "3"
+                : "paragraph"
+            }
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "paragraph") {
+                editor.chain().focus().setParagraph().run();
+              } else {
+                editor
+                  .chain()
+                  .focus()
+                  .toggleHeading({ level: Number(val) as 1 | 2 | 3 })
+                  .run();
+              }
+            }}
+          >
+            {HEADING_OPTIONS.map((h) => (
+              <option key={h.value} value={h.value}>
+                {h.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="w-px h-5 bg-black/15" />
+
         <div className="flex items-center gap-2">
           <label className="font-mono text-[10px] uppercase text-[#7A6E58]">Font</label>
           <select
@@ -217,6 +308,63 @@ export default function Editor(props: {
         >
           i
         </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => editor.chain().focus().toggleStrike().run()}
+          title="Strikethrough"
+          className={`w-7 h-7 rounded border font-serif text-sm line-through ${
+            editor.isActive("strike")
+              ? "bg-lamp border-lamp text-ink"
+              : "bg-white border-black/15"
+          }`}
+        >
+          S
+        </motion.button>
+
+        <div className="w-px h-5 bg-black/15" />
+
+        <div className="flex items-center gap-1">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => editor.chain().focus().setTextAlign("left").run()}
+            title="Align left"
+            className={`w-7 h-7 rounded border font-mono text-xs ${
+              editor.isActive({ textAlign: "left" })
+                ? "bg-lamp border-lamp text-ink"
+                : "bg-white border-black/15"
+            }`}
+          >
+            ⇤
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => editor.chain().focus().setTextAlign("center").run()}
+            title="Align center"
+            className={`w-7 h-7 rounded border font-mono text-xs ${
+              editor.isActive({ textAlign: "center" })
+                ? "bg-lamp border-lamp text-ink"
+                : "bg-white border-black/15"
+            }`}
+          >
+            ⇔
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => editor.chain().focus().setTextAlign("right").run()}
+            title="Align right"
+            className={`w-7 h-7 rounded border font-mono text-xs ${
+              editor.isActive({ textAlign: "right" })
+                ? "bg-lamp border-lamp text-ink"
+                : "bg-white border-black/15"
+            }`}
+          >
+            ⇥
+          </motion.button>
+        </div>
 
         <div className="w-px h-5 bg-black/15" />
 
@@ -258,6 +406,31 @@ export default function Editor(props: {
           }`}
         >
           1.≡
+        </motion.button>
+
+        <div className="w-px h-5 bg-black/15" />
+
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleSetLink}
+          title={editor.isActive("link") ? "Remove link" : "Add link"}
+          className={`w-7 h-7 rounded border font-serif text-sm ${
+            editor.isActive("link")
+              ? "bg-lamp border-lamp text-ink"
+              : "bg-white border-black/15"
+          }`}
+        >
+          🔗
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+          title="Clear formatting"
+          className="w-7 h-7 rounded border font-mono text-[11px] bg-white border-black/15"
+        >
+          Tx
         </motion.button>
       </div>
 

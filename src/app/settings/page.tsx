@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
@@ -80,8 +81,9 @@ const TABS = ["Profile", "Writing", "Security", "Export"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function SettingsPage() {
-  const { user, updateProfile, updatePassword, updateAvatar } = useAuth();
+  const { user, updateProfile, updatePassword, updateAvatar, deleteAccount } = useAuth();
   const { stories } = useStories();
+  const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("Profile");
 
@@ -104,6 +106,11 @@ export default function SettingsPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -209,6 +216,24 @@ export default function SettingsPage() {
     setNewPassword("");
     setConfirmPassword("");
     setTimeout(() => setPasswordSuccess(false), 1800);
+  }
+
+  async function handleDeleteAccount() {
+    setDeleteError(null);
+    if (deleteConfirmText !== "DELETE") {
+      setDeleteError('Type "DELETE" to confirm.');
+      return;
+    }
+
+    setDeleting(true);
+    const result = await deleteAccount();
+    setDeleting(false);
+
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
+    router.push("/");
   }
 
   function downloadBlob(blob: Blob, filename: string) {
@@ -475,6 +500,62 @@ export default function SettingsPage() {
                     {passwordSubmitting ? "Saving…" : "Save password"}
                   </button>
                 </form>
+              )}
+
+              {tab === "Security" && (
+                <div className="max-w-sm mt-10 pt-8 border-t border-red-400/20">
+                  <p className="font-mono text-[10px] uppercase tracking-wide text-red-400/80 mb-1">
+                    Danger zone
+                  </p>
+                  <p className="text-sm text-muted leading-relaxed mb-4">
+                    Deleting your account permanently removes your profile, every story and
+                    chapter you&apos;ve written, and your avatar. This can&apos;t be undone.
+                  </p>
+
+                  {!deleteConfirmOpen ? (
+                    <button
+                      onClick={() => {
+                        setDeleteConfirmOpen(true);
+                        setDeleteError(null);
+                        setDeleteConfirmText("");
+                      }}
+                      className="text-sm font-semibold px-4 py-2 rounded-lg border border-red-400/40 text-red-400 hover:bg-red-400/10 transition-colors"
+                    >
+                      Delete account
+                    </button>
+                  ) : (
+                    <div className="space-y-3 bg-red-400/5 border border-red-400/20 rounded-lg p-4">
+                      <p className="text-xs text-muted leading-relaxed">
+                        Type <span className="font-mono text-parchment">DELETE</span> below to
+                        confirm.
+                      </p>
+                      <input
+                        type="text"
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        placeholder="DELETE"
+                        className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-sm outline-none border border-red-400/20 focus:border-red-400/50 transition-colors placeholder:text-faint"
+                      />
+                      {deleteError && <p className="text-xs text-red-400">{deleteError}</p>}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDeleteAccount}
+                          disabled={deleting}
+                          className="bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60"
+                        >
+                          {deleting ? "Deleting…" : "Permanently delete"}
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmOpen(false)}
+                          disabled={deleting}
+                          className="text-sm px-4 py-2 rounded-lg border border-parchment/10 text-muted hover:text-parchment transition-colors disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {tab === "Export" && (

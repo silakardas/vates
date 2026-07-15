@@ -5,10 +5,12 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
+import { setRememberMe } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
@@ -18,6 +20,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+    // Must be set before login() so the session lands in the right storage.
+    setRememberMe(remember);
     const { error } = await login(email, password);
     setSubmitting(false);
     if (error) {
@@ -79,6 +83,16 @@ export default function LoginPage() {
                 className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-parchment outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-muted select-none cursor-pointer">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="w-4 h-4 rounded border-parchment/20 bg-ink-soft accent-lamp"
+              />
+              Remember me
+            </label>
 
             {error && (
               <p className="text-xs text-red-400 leading-relaxed">{error}</p>

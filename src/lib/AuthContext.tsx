@@ -62,6 +62,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   signup: (email: string, password: string, name: string) => Promise<{ error?: string; needsConfirmation?: boolean }>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateAvatar: (file: File) => Promise<{ error?: string; url?: string }>;
   updateProfile: (updates: {
@@ -136,6 +137,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     await supabase.auth.signOut();
+  }
+
+  async function deleteAccount() {
+    if (!user) return { error: "Not logged in" };
+
+    try {
+      const res = await fetch("/api/account/delete", { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { error: body.error ?? "Something went wrong. Please try again." };
+      }
+    } catch {
+      return { error: "Something went wrong. Please try again." };
+    }
+
+    await supabase.auth.signOut();
+    return {};
   }
 
   async function updatePassword(newPassword: string) {
@@ -216,7 +234,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, signup, logout, updatePassword, updateAvatar, updateProfile }}
+      value={{
+        user,
+        loading,
+        login,
+        signup,
+        logout,
+        deleteAccount,
+        updatePassword,
+        updateAvatar,
+        updateProfile,
+      }}
     >
       {children}
     </AuthContext.Provider>

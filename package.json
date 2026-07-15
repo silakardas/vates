@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.48.1",
     "@tiptap/extension-color": "^3.27.4",
     "@tiptap/extension-font-family": "^3.27.4",
     "@tiptap/extension-highlight": "^3.27.4",
@@ -16,11 +18,10 @@
     "@tiptap/extension-placeholder": "^3.27.4",
     "@tiptap/extension-text-align": "^3.27.4",
     "@tiptap/extension-text-style": "^3.27.4",
+    "@tiptap/extension-underline": "^3.27.4",
     "@tiptap/pm": "^3.27.4",
     "@tiptap/react": "^3.27.4",
     "@tiptap/starter-kit": "^3.27.4",
-    "@supabase/supabase-js": "^2.48.1",
-    "@supabase/ssr": "^0.5.2",
     "framer-motion": "^12.42.2",
     "next": "16.2.10",
     "react": "19.2.4",

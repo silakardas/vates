@@ -7,6 +7,7 @@ import { TextStyle, FontSize } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import FontFamily from "@tiptap/extension-font-family";
+import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
@@ -59,6 +60,7 @@ export default function Editor(props: {
       Color,
       Highlight.configure({ multicolor: true }),
       FontFamily,
+      Underline,
       Placeholder.configure({ placeholder: "Start writing..." }),
       Link.configure({
         openOnClick: false,
@@ -307,6 +309,19 @@ export default function Editor(props: {
           }`}
         >
           i
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          title="Underline"
+          className={`w-7 h-7 rounded border font-serif text-sm underline ${
+            editor.isActive("underline")
+              ? "bg-lamp border-lamp text-ink"
+              : "bg-white border-black/15"
+          }`}
+        >
+          U
         </motion.button>
         <motion.button
           whileHover={{ scale: 1.08 }}

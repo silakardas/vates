@@ -87,6 +87,9 @@ export default function SettingsPage() {
 
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
+  const [favoriteGenre, setFavoriteGenre] = useState("");
+  const [recurringUniverse, setRecurringUniverse] = useState("");
+  const [favoriteLine, setFavoriteLine] = useState("");
   const [dailyGoal, setDailyGoal] = useState(300);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +109,9 @@ export default function SettingsPage() {
     if (user) {
       setName(user.name);
       setBio(user.bio ?? "");
+      setFavoriteGenre(user.favoriteGenre ?? "");
+      setRecurringUniverse(user.recurringUniverse ?? "");
+      setFavoriteLine(user.favoriteLine ?? "");
       setDailyGoal(user.dailyGoal ?? 300);
     }
   }, [user]);
@@ -138,7 +144,14 @@ export default function SettingsPage() {
     }
 
     setSaving(true);
-    const result = await updateProfile({ name: name.trim(), dailyGoal, bio: bio.trim() });
+    const result = await updateProfile({
+      name: name.trim(),
+      dailyGoal,
+      bio: bio.trim(),
+      favoriteGenre: favoriteGenre.trim(),
+      recurringUniverse: recurringUniverse.trim(),
+      favoriteLine: favoriteLine.trim(),
+    });
     setSaving(false);
 
     if (result.error) {
@@ -327,6 +340,55 @@ export default function SettingsPage() {
                       className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none"
                     />
                     <p className="text-[10px] font-mono text-faint mt-1">{bio.length}/160</p>
+                  </div>
+
+                  <div className="pt-2 border-t border-parchment/10">
+                    <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4 pt-4">
+                      Writer identity
+                    </p>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                          Favorite genre
+                        </label>
+                        <input
+                          value={favoriteGenre}
+                          onChange={(e) => setFavoriteGenre(e.target.value)}
+                          maxLength={40}
+                          placeholder="e.g. Gothic horror"
+                          className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                          Recurring universe
+                        </label>
+                        <input
+                          value={recurringUniverse}
+                          onChange={(e) => setRecurringUniverse(e.target.value)}
+                          maxLength={40}
+                          placeholder="A world you keep coming back to"
+                          className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                          Favorite line
+                        </label>
+                        <textarea
+                          value={favoriteLine}
+                          onChange={(e) => setFavoriteLine(e.target.value)}
+                          maxLength={200}
+                          rows={2}
+                          placeholder="A line you wrote that still means something to you…"
+                          className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none placeholder:text-faint"
+                        />
+                        <p className="text-[10px] font-mono text-faint mt-1">{favoriteLine.length}/200</p>
+                      </div>
+                    </div>
                   </div>
 
                   {error && <p className="text-xs text-red-400">{error}</p>}

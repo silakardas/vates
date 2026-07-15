@@ -51,6 +51,9 @@ type User = {
   avatarUrl?: string;
   dailyGoal?: number;
   bio?: string;
+  favoriteGenre?: string;
+  recurringUniverse?: string;
+  favoriteLine?: string;
 };
 
 type AuthContextType = {
@@ -61,7 +64,14 @@ type AuthContextType = {
   logout: () => Promise<void>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateAvatar: (file: File) => Promise<{ error?: string; url?: string }>;
-updateProfile: (updates: { name: string; dailyGoal: number; bio?: string }) => Promise<{ error?: string }>;
+  updateProfile: (updates: {
+    name: string;
+    dailyGoal: number;
+    bio?: string;
+    favoriteGenre?: string;
+    recurringUniverse?: string;
+    favoriteLine?: string;
+  }) => Promise<{ error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -77,6 +87,9 @@ function toUser(session: Session | null): User | null {
     avatarUrl: user_metadata?.avatar_url as string | undefined,
     dailyGoal: (user_metadata?.daily_goal as number | undefined) ?? 300,
     bio: (user_metadata?.bio as string | undefined) ?? "",
+    favoriteGenre: (user_metadata?.favorite_genre as string | undefined) ?? "",
+    recurringUniverse: (user_metadata?.recurring_universe as string | undefined) ?? "",
+    favoriteLine: (user_metadata?.favorite_line as string | undefined) ?? "",
   };
 }
 
@@ -130,11 +143,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message };
   }
 
-  async function updateProfile(updates: { name: string; dailyGoal: number; bio?: string }) {
+  async function updateProfile(updates: {
+    name: string;
+    dailyGoal: number;
+    bio?: string;
+    favoriteGenre?: string;
+    recurringUniverse?: string;
+    favoriteLine?: string;
+  }) {
     if (!user) return { error: "Not logged in" };
 
     const { error } = await supabase.auth.updateUser({
-      data: { name: updates.name, daily_goal: updates.dailyGoal, bio: updates.bio ?? "" },
+      data: {
+        name: updates.name,
+        daily_goal: updates.dailyGoal,
+        bio: updates.bio ?? "",
+        favorite_genre: updates.favoriteGenre ?? "",
+        recurring_universe: updates.recurringUniverse ?? "",
+        favorite_line: updates.favoriteLine ?? "",
+      },
     });
 
     return { error: error?.message };

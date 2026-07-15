@@ -9,10 +9,6 @@ import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
-import { STATUS_CONFIG } from "@/lib/storyStatus";
-import { relativeTime } from "@/lib/timeAgo";
-import { buildActivity } from "@/lib/activity";
-import ActivityStrip from "@/components/ActivityStrip";
 
 function formatJoinDate(timestamp: number) {
   return new Date(timestamp).toLocaleDateString("en-US", {
@@ -48,29 +44,6 @@ export default function AccountPage() {
   const inProgress = stories.filter((s) => s.status === "inProgress").length;
   const streak = stories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0);
 
-  const longestStory = stories.reduce<{ title: string; words: number } | null>(
-    (best, s) => {
-      const words = totalWordCount(s);
-      if (!best || words > best.words) return { title: s.title, words };
-      return best;
-    },
-    null
-  );
-
-  const tagCounts = stories.flatMap((s) => s.tags).reduce<Record<string, number>>(
-    (counts, tag) => {
-      counts[tag] = (counts[tag] ?? 0) + 1;
-      return counts;
-    },
-    {}
-  );
-  const sortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
-  const favoriteTag = sortedTags[0]?.[0];
-  const topTags = sortedTags.slice(0, 10).map(([tag]) => tag);
-
-  const recentStories = [...stories].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3);
-  const activity = buildActivity(stories, 14);
-
   function handleLogout() {
     logout();
     router.push("/");
@@ -104,6 +77,7 @@ export default function AccountPage() {
     <>
       <Header />
       <main className="px-8 py-16 max-w-2xl mx-auto">
+        {/* Identity + stats */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -158,156 +132,106 @@ export default function AccountPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-          className="grid grid-cols-3 gap-4 mb-4"
+          className="grid grid-cols-4 gap-4 mb-16"
         >
-          <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4 text-center">
+          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{stories.length}</p>
             <p className="text-xs text-muted mt-1">stories</p>
           </div>
-          <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4 text-center">
+          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">
               {totalWords.toLocaleString("en-US")}
             </p>
             <p className="text-xs text-muted mt-1">words written</p>
           </div>
-          <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4 text-center">
+          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{inProgress}</p>
             <p className="text-xs text-muted mt-1">in progress</p>
           </div>
+          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+            <p className="font-mono text-2xl text-lamp">{streak || "—"}</p>
+            <p className="text-xs text-muted mt-1">day streak</p>
+          </div>
         </motion.div>
 
-        {(streak > 0 || longestStory || favoriteTag) && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-            className="grid grid-cols-3 gap-4 mb-12"
-          >
-            <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4 text-center">
-              <p className="font-mono text-2xl text-lamp">{streak || "—"}</p>
-              <p className="text-xs text-muted mt-1">day streak</p>
-            </div>
-            <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4 text-center overflow-hidden">
-              <p className="font-mono text-2xl text-lamp">
-                {longestStory ? longestStory.words.toLocaleString("en-US") : "—"}
-              </p>
-              <p className="text-xs text-muted mt-1 truncate" title={longestStory?.title}>
-                longest{longestStory ? `: ${longestStory.title}` : " story"}
-              </p>
-            </div>
-            <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4 text-center overflow-hidden">
-              <p className="font-mono text-2xl text-lamp truncate" title={favoriteTag}>
-                {favoriteTag ?? "—"}
-              </p>
-              <p className="text-xs text-muted mt-1">favorite tag</p>
-            </div>
-          </motion.div>
-        )}
+        {/* Writer identity */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
+          className="mb-16"
+        >
+          <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+            Writer identity
+          </p>
 
+          {user.favoriteGenre || user.recurringUniverse ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
+                <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
+                  Favorite genre
+                </p>
+                <p className="font-serif text-parchment truncate" title={user.favoriteGenre}>
+                  {user.favoriteGenre || "—"}
+                </p>
+              </div>
+              <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
+                <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
+                  Recurring universe
+                </p>
+                <p className="font-serif text-parchment truncate" title={user.recurringUniverse}>
+                  {user.recurringUniverse || "—"}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6 text-center">
+              <p className="text-sm text-muted mb-2">
+                You haven&apos;t shared your favorite genre or universe yet.
+              </p>
+              <Link href="/settings" className="text-lamp text-sm hover:underline">
+                Add it in Settings →
+              </Link>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Meaningful moments */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}
           className="mb-12"
         >
-          <div className="flex items-center justify-between mb-4">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint">
-              Recent stories
-            </p>
-            {stories.length > 0 && (
-              <Link
-                href="/workshop"
-                className="text-xs text-muted hover:text-parchment transition-colors"
-              >
-                View all →
-              </Link>
-            )}
-          </div>
+          <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+            Meaningful moments
+          </p>
 
-          {recentStories.length === 0 ? (
-            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-8 text-center">
-              <p className="text-sm text-muted mb-3">You haven&apos;t started a story yet.</p>
-              <Link href="/workshop" className="text-lamp text-sm hover:underline">
-                Begin your first one →
-              </Link>
+          {user.favoriteLine ? (
+            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6">
+              <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-2">
+                Favorite line
+              </p>
+              <p className="font-serif text-lg text-parchment italic leading-relaxed">
+                &quot;{user.favoriteLine}&quot;
+              </p>
             </div>
           ) : (
-            <div className="bg-panel border border-parchment/10 rounded-xl divide-y divide-parchment/10 overflow-hidden">
-              {recentStories.map((s) => {
-                const status = STATUS_CONFIG[s.status];
-                return (
-                  <Link
-                    key={s.id}
-                    href={`/story/${s.id}`}
-                    className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-parchment/[0.03] transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className={`text-[10px] font-mono ${status.color}`}>
-                          ● {status.label}
-                        </span>
-                        <span className="text-[10px] font-mono text-faint">
-                          {s.type === "series" ? `${s.chapters.length} ch` : "oneshot"}
-                        </span>
-                      </div>
-                      <p className="font-serif text-parchment truncate">{s.title}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-mono text-muted">
-                        {totalWordCount(s).toLocaleString("en-US")} words
-                      </p>
-                      <p className="text-[10px] font-mono text-faint mt-0.5">
-                        edited {relativeTime(s.updatedAt)}
-                      </p>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6 text-center">
+              <p className="text-sm text-muted mb-2">
+                Save a line you wrote that still means something to you.
+              </p>
+              <Link href="/settings" className="text-lamp text-sm hover:underline">
+                Add it in Settings →
+              </Link>
             </div>
           )}
         </motion.div>
 
-        {stories.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.25, ease: "easeOut" }}
-            className="mb-12"
-          >
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-              Last 14 days
-            </p>
-            <ActivityStrip days={activity} />
-          </motion.div>
-        )}
-
-        {topTags.length > 1 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3, ease: "easeOut" }}
-            className="mb-12"
-          >
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-              Tags you write
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {topTags.map((tag) => (
-                <span
-                  key={tag}
-                  className="text-xs font-mono text-muted bg-panel border border-parchment/10 px-3 py-1.5 rounded-full"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          </motion.div>
-        )}
-
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.35, ease: "easeOut" }}
+          transition={{ duration: 0.4, delay: 0.25, ease: "easeOut" }}
           className="mb-6"
         >
           <div className="flex items-center gap-6">

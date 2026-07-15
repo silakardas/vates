@@ -9,6 +9,7 @@ import EmberField from "@/components/EmberField";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
 import { randomLine, timeGreeting } from "@/lib/greeting";
+import { getTodaysPrompt } from "@/lib/challenges";
 import { totalWordCount } from "@/lib/types";
 import Footer from "@/components/Footer";
 
@@ -22,6 +23,7 @@ export default function Home() {
   const { createStory, stories } = useStories();
   const { user } = useAuth();
   const [intro, setIntro] = useState<{ line: string; greeting: string } | null>(null);
+  const [todaysPrompt, setTodaysPrompt] = useState<string | null>(null);
 
   const glimpses = [...stories]
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -31,6 +33,13 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only init to avoid SSR hydration mismatch (random line + local time)
     setIntro({ line: randomLine(), greeting: timeGreeting(user?.name) });
   }, [user?.name]);
+
+  useEffect(() => {
+    // Computed client-side (not baked in at build time) so the banner
+    // rotates automatically based on the visitor's current date.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTodaysPrompt(getTodaysPrompt());
+  }, []);
 
   function handleEnter() {
     if (user) {
@@ -43,9 +52,7 @@ export default function Home() {
   return (
     <>
       <Header />
-      <ChallengeBanner
-        prompt="Describe your favorite object as if it were a person."
-      />
+      {todaysPrompt && <ChallengeBanner prompt={todaysPrompt} />}
       <main className="relative flex flex-col items-center justify-center text-center px-8 overflow-hidden text-parchment" style={{ minHeight: "calc(100vh - 121px)" }}>
         <EmberField />
 

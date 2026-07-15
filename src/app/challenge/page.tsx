@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
@@ -8,15 +8,32 @@ import ActivityStrip from "@/components/ActivityStrip";
 import Footer from "@/components/Footer";
 import { useStories } from "@/lib/StoryContext";
 import { buildActivity } from "@/lib/activity";
-import { ALTERNATE_PROMPTS, PAST_CHALLENGES, THEMES, TODAYS_PROMPT, randomThemePrompt } from "@/lib/challenges";
+import {
+  ALTERNATE_PROMPTS,
+  THEMES,
+  getPastChallenges,
+  getTodaysPrompt,
+  randomThemePrompt,
+} from "@/lib/challenges";
+import type { ChallengeEntry } from "@/lib/challenges";
 
 export default function ChallengePage() {
   const router = useRouter();
   const { stories, createStory, updateChapter } = useStories();
   const streak = stories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0);
-  const [prompt, setPrompt] = useState(TODAYS_PROMPT);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [pastChallenges, setPastChallenges] = useState<ChallengeEntry[]>([]);
   const [promptIndex, setPromptIndex] = useState(-1);
   const [activeTheme, setActiveTheme] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Computed client-side (not at build time) so it's based on the
+    // visitor's actual current date, and updates automatically every day.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPrompt(getTodaysPrompt());
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPastChallenges(getPastChallenges(7));
+  }, []);
 
   const activity = buildActivity(stories, 28);
 
@@ -34,6 +51,8 @@ export default function ChallengePage() {
     setPrompt(ALTERNATE_PROMPTS[next]);
     setActiveTheme(null);
   }
+
+  const displayPrompt = prompt ?? "";
 
   function handleThemePick(themeId: string) {
     const random = randomThemePrompt(themeId);
@@ -63,14 +82,14 @@ export default function ChallengePage() {
 
               <AnimatePresence mode="wait">
                 <motion.h1
-                  key={prompt}
+                  key={displayPrompt}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                   className="font-serif italic text-2xl md:text-3xl leading-snug mb-5"
                 >
-                  &quot;{prompt}&quot;
+                  &quot;{displayPrompt}&quot;
                 </motion.h1>
               </AnimatePresence>
 
@@ -83,7 +102,7 @@ export default function ChallengePage() {
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.96 }}
-                  onClick={() => startFrom(prompt)}
+                  onClick={() => startFrom(displayPrompt)}
                   className="bg-lamp text-ink font-semibold px-6 py-3 rounded-full"
                 >
                   Write from this
@@ -150,7 +169,7 @@ export default function ChallengePage() {
               Past prompts
             </p>
             <div className="space-y-1">
-              {PAST_CHALLENGES.map((c) => (
+              {pastChallenges.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => startFrom(c.prompt)}

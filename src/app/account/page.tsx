@@ -22,20 +22,13 @@ function formatJoinDate(timestamp: number) {
 }
 
 export default function AccountPage() {
-  const { user, logout, updatePassword, updateAvatar } = useAuth();
+  const { user, logout, updateAvatar } = useAuth();
   const { stories } = useStories();
   const router = useRouter();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   if (!user) {
     return (
@@ -105,38 +98,6 @@ export default function AccountPage() {
       setAvatarError(result.error);
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-
-  async function handlePasswordSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setPasswordError(null);
-    setPasswordSuccess(false);
-
-    if (newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords don't match.");
-      return;
-    }
-
-    setPasswordSubmitting(true);
-    const result = await updatePassword(newPassword);
-    setPasswordSubmitting(false);
-
-    if (result.error) {
-      setPasswordError(result.error);
-      return;
-    }
-
-    setPasswordSuccess(true);
-    setNewPassword("");
-    setConfirmPassword("");
-    setTimeout(() => {
-      setShowPasswordForm(false);
-      setPasswordSuccess(false);
-    }, 1800);
   }
 
   return (
@@ -349,79 +310,17 @@ export default function AccountPage() {
           transition={{ duration: 0.4, delay: 0.35, ease: "easeOut" }}
           className="mb-6"
         >
-          {!showPasswordForm ? (
-            <div className="flex items-center gap-6">
-              <Link href="/settings" className="text-sm text-muted hover:text-parchment transition-colors">
-                Preferences
-              </Link>
-              <button
-                onClick={() => setShowPasswordForm(true)}
-                className="text-sm text-muted hover:text-parchment transition-colors"
-              >
-                Change password
-              </button>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-crimson hover:underline"
-              >
-                Log out
-              </button>
-            </div>
-          ) : (
-            <form
-              onSubmit={handlePasswordSubmit}
-              className="bg-panel border border-parchment/10 rounded-xl px-6 py-5 space-y-3 max-w-sm"
+          <div className="flex items-center gap-6">
+            <Link href="/settings" className="text-sm text-muted hover:text-parchment transition-colors">
+              Settings
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-crimson hover:underline"
             >
-              <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-1">
-                Change password
-              </p>
-              <input
-                type="password"
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="New password"
-                className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-sm text-parchment outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
-              />
-              <input
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-                className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-sm text-parchment outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
-              />
-
-              {passwordError && (
-                <p className="text-xs text-red-400">{passwordError}</p>
-              )}
-              {passwordSuccess && (
-                <p className="text-xs text-green-400">Password updated.</p>
-              )}
-
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  type="submit"
-                  disabled={passwordSubmitting}
-                  className="bg-lamp text-ink text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-60"
-                >
-                  {passwordSubmitting ? "Saving…" : "Save password"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordForm(false);
-                    setPasswordError(null);
-                    setNewPassword("");
-                    setConfirmPassword("");
-                  }}
-                  className="text-sm text-muted hover:text-parchment transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
+              Log out
+            </button>
+          </div>
         </motion.div>
       </main>
     </>

@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Story, Chapter, Character, ChapterVersion } from "./types";
+import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage } from "./types";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
+import { moodboardExtensionFor, MAX_MOODBOARD_BYTES } from "@/lib/moodboardImage";
 
 // Local (not UTC) calendar date, so a streak doesn't break at midnight UTC
 // for users in other timezones.
@@ -48,6 +49,15 @@ function newCharacter(): Character {
     name: "New character",
     role: "",
     description: "",
+    moodboard: [],
+  };
+}
+
+function newEvent(): MapEvent {
+  return {
+    id: crypto.randomUUID(),
+    title: "New event",
+    description: "",
   };
 }
 
@@ -64,6 +74,8 @@ function newStory(): Story {
     lastWriteDate: undefined,
     chapters: [newChapter("Untitled story")],
     characters: [],
+    events: [],
+    connections: [],
     notes: "",
   };
 }
@@ -82,6 +94,8 @@ type StoryRow = {
   notes: string;
   chapters: Chapter[];
   characters: Character[];
+  events: MapEvent[] | null;
+  connections: MapConnection[] | null;
   updated_at: string;
 };
 
@@ -98,6 +112,8 @@ function rowToStory(row: StoryRow): Story {
     updatedAt: new Date(row.updated_at).getTime(),
     chapters: row.chapters ?? [],
     characters: row.characters ?? [],
+    events: row.events ?? [],
+    connections: row.connections ?? [],
     notes: row.notes ?? "",
   };
 }
@@ -116,6 +132,8 @@ function storyToRow(story: Story, ownerId: string) {
     notes: story.notes,
     chapters: story.chapters,
     characters: story.characters,
+    events: story.events,
+    connections: story.connections,
     updated_at: new Date(story.updatedAt).toISOString(),
   };
 }
@@ -141,6 +159,16 @@ type StoryContextType = {
   addCharacter: (storyId: string) => Character | undefined;
   updateCharacter: (storyId: string, characterId: string, updates: Partial<Character>) => void;
   removeCharacter: (storyId: string, characterId: string) => void;
+  addEvent: (storyId: string) => MapEvent | undefined;
+  updateEvent: (storyId: string, eventId: string, updates: Partial<MapEvent>) => void;
+  removeEvent: (storyId: string, eventId: string) => void;
+  toggleConnection: (storyId: string, fromId: string, toId: string) => void;
+  uploadMoodboardImage: (
+    storyId: string,
+    characterId: string,
+    file: File
+  ) => Promise<{ error?: string }>;
+  removeMoodboardImage: (storyId: string, characterId: string, imageId: string) => void;
   updateNotes: (storyId: string, notes: string) => void;
   saveVersion: (storyId: string, chapterId: string, label?: string) => void;
   restoreVersion: (storyId: string, chapterId: string, versionId: string) => void;
@@ -458,7 +486,145 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     setStories((prev) =>
       prev.map((s) => {
         if (s.id !== storyId) return s;
-        const next = { ...s, characters: s.characters.filter((c) => c.id !== characterId) };
+        const next = {
+          ...s,
+          characters: s.characters.filter((c) => c.id !== characterId),
+          // Drop any map connections that pointed at this character.
+          connections: s.connections.filter(
+            (conn) => conn.fromId !== characterId && conn.toId !== characterId
+          ),
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  function addEvent(storyId: string): MapEvent | undefined {
+    let created: MapEvent | undefined;
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        created = newEvent();
+        const next = { ...s, events: [...s.events, created], updatedAt: Date.now() };
+        persist(next);
+        return next;
+      })
+    );
+    return created;
+  }
+
+  function updateEvent(storyId: string, eventId: string, updates: Partial<MapEvent>) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = {
+          ...s,
+          updatedAt: Date.now(),
+          events: s.events.map((e) => (e.id === eventId ? { ...e, ...updates } : e)),
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  function removeEvent(storyId: string, eventId: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = {
+          ...s,
+          events: s.events.filter((e) => e.id !== eventId),
+          connections: s.connections.filter(
+            (conn) => conn.fromId !== eventId && conn.toId !== eventId
+          ),
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  // Connecting the same pair twice removes the link — a click on either
+  // node again toggles it off, so the canvas needs no separate "delete
+  // connection" affordance.
+  function toggleConnection(storyId: string, fromId: string, toId: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const existing = s.connections.find(
+          (c) =>
+            (c.fromId === fromId && c.toId === toId) ||
+            (c.fromId === toId && c.toId === fromId)
+        );
+        const next = {
+          ...s,
+          connections: existing
+            ? s.connections.filter((c) => c.id !== existing.id)
+            : [...s.connections, { id: crypto.randomUUID(), fromId, toId }],
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  async function uploadMoodboardImage(storyId: string, characterId: string, file: File) {
+    if (!user) return { error: "Not logged in" };
+
+    const ext = moodboardExtensionFor(file.type);
+    if (!ext) {
+      return { error: "Please upload a JPG, PNG, WEBP, or GIF image." };
+    }
+    if (file.size > MAX_MOODBOARD_BYTES) {
+      return { error: "Image must be under 5MB." };
+    }
+
+    const path = `${user.id}/${characterId}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("moodboards")
+      .upload(path, file);
+    if (uploadError) return { error: uploadError.message };
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("moodboards").getPublicUrl(path);
+
+    const image: MoodboardImage = { id: crypto.randomUUID(), url: publicUrl };
+
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = {
+          ...s,
+          updatedAt: Date.now(),
+          characters: s.characters.map((c) =>
+            c.id === characterId
+              ? { ...c, moodboard: [...(c.moodboard ?? []), image] }
+              : c
+          ),
+        };
+        persist(next);
+        return next;
+      })
+    );
+
+    return {};
+  }
+
+  function removeMoodboardImage(storyId: string, characterId: string, imageId: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = {
+          ...s,
+          characters: s.characters.map((c) =>
+            c.id === characterId
+              ? { ...c, moodboard: (c.moodboard ?? []).filter((m) => m.id !== imageId) }
+              : c
+          ),
+        };
         persist(next);
         return next;
       })
@@ -493,6 +659,12 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         addCharacter,
         updateCharacter,
         removeCharacter,
+        addEvent,
+        updateEvent,
+        removeEvent,
+        toggleConnection,
+        uploadMoodboardImage,
+        removeMoodboardImage,
         updateNotes,
         saveVersion,
         restoreVersion,

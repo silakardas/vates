@@ -18,11 +18,38 @@ export type Chapter = {
 
 export type StoryType = "oneshot" | "series";
 
+export type MoodboardImage = {
+  id: string;
+  url: string;
+  caption?: string;
+};
+
 export type Character = {
   id: string;
   name: string;
   role: string; // e.g. "Protagonist", "Love interest" — freeform
   description: string;
+  x?: number; // position on the story map canvas
+  y?: number;
+  moodboard?: MoodboardImage[];
+};
+
+// A plot point / scene the writer wants to track and link to characters
+// (or to other events) on the story map.
+export type MapEvent = {
+  id: string;
+  title: string;
+  description: string;
+  x?: number;
+  y?: number;
+};
+
+// A link between two map nodes. Each end is a node id — either a
+// Character.id or a MapEvent.id — since both live on the same canvas.
+export type MapConnection = {
+  id: string;
+  fromId: string;
+  toId: string;
 };
 
 export type Story = {
@@ -37,6 +64,8 @@ export type Story = {
   lastWriteDate?: string; // "YYYY-MM-DD", last calendar day the streak was bumped
   updatedAt: number; // timestamp, used to find "last edited"
   characters: Character[];
+  events: MapEvent[];
+  connections: MapConnection[];
   notes: string; // freeform HTML/plain text scratchpad for the story
 };
 

@@ -80,6 +80,13 @@ export default function StoryPage() {
             ← Back to workshop
           </button>
 
+          <button
+            onClick={() => router.push(`/story/${story.id}/map`)}
+            className="text-lamp font-mono text-xs hover:underline mb-6 self-start"
+          >
+            ✧ Open story map
+          </button>
+
           <div className="mb-2">
             <input
               value={story.title}

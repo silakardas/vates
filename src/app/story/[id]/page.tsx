@@ -73,19 +73,21 @@ export default function StoryPage() {
       <Header />
       <div className="flex" style={{ minHeight: "calc(100vh - 89px)" }}>
         <main className="flex-1 min-w-0 text-parchment px-8 py-10 flex flex-col">
-          <button
-            onClick={() => router.push("/workshop")}
-            className="text-muted font-mono text-xs hover:text-lamp transition-colors mb-6 self-start"
-          >
-            ← Back to workshop
-          </button>
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => router.push("/workshop")}
+              className="text-muted font-mono text-xs hover:text-lamp transition-colors"
+            >
+              ← Back to workshop
+            </button>
 
-          <button
-            onClick={() => router.push(`/story/${story.id}/map`)}
-            className="text-lamp font-mono text-xs hover:underline mb-6 self-start"
-          >
-            ✧ Open story map
-          </button>
+            <button
+              onClick={() => router.push(`/story/${story.id}/map`)}
+              className="text-xs font-mono text-lamp border border-lamp/30 rounded-lg px-3 py-1.5 hover:bg-lamp/5 transition-colors"
+            >
+              ✧ Story map
+            </button>
+          </div>
 
           <div className="mb-2">
             <input

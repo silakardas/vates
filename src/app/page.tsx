@@ -7,6 +7,10 @@ import Header from "@/components/Header";
 import ChallengeBanner from "@/components/ChallengeBanner";
 import EmberField from "@/components/EmberField";
 import FAQ from "@/components/FAQ";
+import WordLookupDemo from "@/components/WordLookupDemo";
+import EditorTypingDemo from "@/components/EditorTypingDemo";
+import StreakDemo from "@/components/StreakDemo";
+import StatsCounterDemo from "@/components/StatsCounterDemo";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
 import { randomLine, timeGreeting } from "@/lib/greeting";
@@ -118,7 +122,7 @@ export default function Home() {
 
       {!user && (
         <section className="relative px-5 sm:px-8 pb-16">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             <div className="flex items-center gap-4 mb-12">
               <span className="h-px flex-1 bg-parchment/10" />
               <p className="font-mono text-[11px] uppercase tracking-widest text-faint whitespace-nowrap">
@@ -127,12 +131,14 @@ export default function Home() {
               <span className="h-px flex-1 bg-parchment/10" />
             </div>
 
-            <div className="grid gap-x-10 gap-y-10 sm:grid-cols-2">
+            <div className="flex flex-col gap-14">
               {[
                 {
                   n: "01",
                   title: "Nothing but the page",
                   copy: "A distraction-free editor with rich text. No clutter, no noise — just you and what you're writing.",
+                  demo: <EditorTypingDemo />,
+                  demoWidth: "sm:w-64",
                 },
                 {
                   n: "02",
@@ -142,12 +148,16 @@ export default function Home() {
                 {
                   n: "03",
                   title: "Look it up, right there",
-                  copy: "Select any word for a definition, synonyms, and an example sentence — without ever leaving the page.",
+                  copy: "Double-click any word for a definition, synonyms, and an example sentence — without ever leaving the page.",
+                  demo: <WordLookupDemo />,
+                  demoWidth: "sm:w-96",
                 },
                 {
                   n: "04",
                   title: "A reason to return",
                   copy: "A new prompt every day, and a streak that's worth protecting.",
+                  demo: <StreakDemo />,
+                  demoWidth: "sm:w-64",
                 },
                 {
                   n: "05",
@@ -158,6 +168,8 @@ export default function Home() {
                   n: "06",
                   title: "Everything, counted",
                   copy: "Total words, streaks, and a map of every day you showed up — all waiting in your workshop.",
+                  demo: <StatsCounterDemo />,
+                  demoWidth: "sm:w-64",
                 },
               ].map((feature, i) => (
                 <motion.div
@@ -166,15 +178,23 @@ export default function Home() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-40px" }}
                   transition={{ duration: 0.4, delay: i * 0.05, ease: "easeOut" }}
-                  className="flex gap-4"
+                  className={`flex flex-col gap-6 ${
+                    feature.demo ? "sm:flex-row sm:items-center sm:gap-10" : ""
+                  }`}
                 >
-                  <span className="font-serif italic text-3xl leading-none text-lamp/25 select-none">
-                    {feature.n}
-                  </span>
-                  <div className="pt-0.5">
-                    <h3 className="font-serif text-base text-parchment mb-1">{feature.title}</h3>
-                    <p className="text-sm text-muted leading-relaxed">{feature.copy}</p>
+                  <div className="flex gap-4 flex-1">
+                    <span className="font-serif italic text-3xl leading-none text-lamp/25 select-none">
+                      {feature.n}
+                    </span>
+                    <div className="pt-0.5">
+                      <h3 className="font-serif text-base text-parchment mb-1">{feature.title}</h3>
+                      <p className="text-sm text-muted leading-relaxed">{feature.copy}</p>
+                    </div>
                   </div>
+
+                  {feature.demo && (
+                    <div className={`w-full flex-shrink-0 ${feature.demoWidth}`}>{feature.demo}</div>
+                  )}
                 </motion.div>
               ))}
             </div>

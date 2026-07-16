@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import ChallengeBanner from "@/components/ChallengeBanner";
 import EmberField from "@/components/EmberField";
+import FAQ from "@/components/FAQ";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
 import { randomLine, timeGreeting } from "@/lib/greeting";
@@ -118,8 +119,8 @@ export default function Home() {
 
       {!user && (
         <section className="relative px-8 pb-16">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center gap-4 mb-10">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-4 mb-12">
               <span className="h-px flex-1 bg-parchment/10" />
               <p className="font-mono text-[11px] uppercase tracking-widest text-faint whitespace-nowrap">
                 Why write here
@@ -127,67 +128,52 @@ export default function Home() {
               <span className="h-px flex-1 bg-parchment/10" />
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-2">
+            <div className="grid gap-x-10 gap-y-10 sm:grid-cols-2">
               {[
                 {
-                  icon: (
-                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-                  ),
-                  title: "A quiet place to write",
-                  copy: "A clean, distraction-free editor with rich text, so the page stays out of your way.",
+                  n: "01",
+                  title: "Nothing but the page",
+                  copy: "A distraction-free editor with rich text. No clutter, no noise — just you and what you're writing.",
                 },
                 {
-                  icon: (
-                    <>
-                      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                    </>
-                  ),
-                  title: "Look words up without leaving",
-                  copy: "Select any word for an instant definition, synonyms, and an example sentence — no new tab required.",
+                  n: "02",
+                  title: "Map your story",
+                  copy: "Save it for good, then sketch a map of its characters and events, and build a moodboard for each one.",
                 },
                 {
-                  icon: (
-                    <path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1-1-2-1-3 2 1 3 3 3 5a5 5 0 01-10 0c0-5 4-6 5-11z" />
-                  ),
-                  title: "Daily challenges & streaks",
-                  copy: "A fresh writing prompt every day keeps the habit going, with streaks to track your consistency.",
+                  n: "03",
+                  title: "Look it up, right there",
+                  copy: "Select any word for a definition, synonyms, and an example sentence — without ever leaving the page.",
                 },
                 {
-                  icon: (
-                    <>
-                      <rect x="3" y="10" width="4" height="10" rx="1" />
-                      <rect x="10" y="5" width="4" height="15" rx="1" />
-                      <rect x="17" y="13" width="4" height="7" rx="1" />
-                    </>
-                  ),
-                  title: "Watch your progress add up",
-                  copy: "A workshop dashboard tracks total words, streaks, and an activity map of every day you showed up.",
+                  n: "04",
+                  title: "A reason to return",
+                  copy: "A new prompt every day, and a streak that's worth protecting.",
+                },
+                {
+                  n: "05",
+                  title: "Organize as it grows",
+                  copy: "Tag your stories, filter your workshop, and export any of them as a text file whenever you like.",
+                },
+                {
+                  n: "06",
+                  title: "Everything, counted",
+                  copy: "Total words, streaks, and a map of every day you showed up — all waiting in your workshop.",
                 },
               ].map((feature, i) => (
                 <motion.div
                   key={feature.title}
-                  initial={{ opacity: 0, y: 12 }}
+                  initial={{ opacity: 0, y: 10 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.4, delay: i * 0.06, ease: "easeOut" }}
-                  className="bg-ink-soft border border-parchment/10 rounded-xl px-6 py-5 flex gap-4"
+                  transition={{ duration: 0.4, delay: i * 0.05, ease: "easeOut" }}
+                  className="flex gap-4"
                 >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#E8A33D"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="flex-shrink-0 mt-1"
-                  >
-                    {feature.icon}
-                  </svg>
-                  <div>
-                    <h3 className="font-serif text-base text-parchment mb-1.5">{feature.title}</h3>
+                  <span className="font-serif italic text-3xl leading-none text-lamp/25 select-none">
+                    {feature.n}
+                  </span>
+                  <div className="pt-0.5">
+                    <h3 className="font-serif text-base text-parchment mb-1">{feature.title}</h3>
                     <p className="text-sm text-muted leading-relaxed">{feature.copy}</p>
                   </div>
                 </motion.div>
@@ -198,74 +184,113 @@ export default function Home() {
       )}
 
       {!user && (
-        <section className="relative px-8 pb-16">
-          <div className="max-w-4xl mx-auto bg-ink-soft border border-parchment/10 rounded-2xl px-8 py-9">
-            <p className="font-mono text-[10px] uppercase tracking-widest text-faint mb-7 text-center">
-              How it works
-            </p>
-            <div className="grid gap-8 sm:grid-cols-3 sm:divide-x sm:divide-parchment/10">
-              {[
-                {
-                  icon: (
-                    <path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1-1-2-1-3 2 1 3 3 3 5a5 5 0 01-10 0c0-5 4-6 5-11z" />
-                  ),
-                  title: "Begin",
-                  copy: "Jump straight into the editor and start typing — no account needed to try it out.",
-                },
-                {
-                  icon: (
-                    <>
-                      <circle cx="5" cy="6" r="2.2" />
-                      <circle cx="19" cy="6" r="2.2" />
-                      <circle cx="12" cy="19" r="2.2" />
-                      <path d="M6.9 7.3L10.5 17M17.1 7.3L13.5 17M7.2 6h9.6" />
-                    </>
-                  ),
-                  title: "Map it out",
-                  copy: "Save your stories for good, then sketch a map of your characters and events, and build a moodboard for each one.",
-                },
-                {
-                  icon: (
-                    <>
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <path d="M3 10h18M8 2v4M16 2v4" />
-                      <path d="M8 15l2.5 2.5L16 12" />
-                    </>
-                  ),
-                  title: "Build a habit",
-                  copy: "Follow the daily challenge, keep a streak alive, and watch your words add up over time.",
-                },
-              ].map((step, i) => (
-                <motion.div
-                  key={step.title}
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.4, delay: i * 0.08, ease: "easeOut" }}
-                  className="sm:px-6 first:sm:pl-0 last:sm:pr-0 text-center sm:text-left"
-                >
-                  <span className="w-9 h-9 rounded-full bg-lamp/10 border border-lamp/30 flex items-center justify-center mb-3 mx-auto sm:mx-0">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#E8A33D"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      {step.icon}
-                    </svg>
-                  </span>
-                  <h3 className="font-serif text-lg text-parchment mb-1.5">{step.title}</h3>
-                  <p className="text-sm text-muted leading-relaxed">{step.copy}</p>
-                </motion.div>
-              ))}
+        <section className="relative px-8 pb-24 pt-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4 mb-14">
+              <span className="h-px flex-1 bg-parchment/10" />
+              <p className="font-mono text-[11px] uppercase tracking-widest text-faint whitespace-nowrap">
+                How it works
+              </p>
+              <span className="h-px flex-1 bg-parchment/10" />
+            </div>
+
+            <div className="relative">
+              {/* a wandering ember trail linking the three steps — desktop only */}
+              <svg
+                className="hidden sm:block absolute left-0 right-0 top-[22px] w-full h-[120px] -z-10"
+                viewBox="0 0 100 20"
+                preserveAspectRatio="none"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8,17 C22,17 24,3 42,3 C55,3 50,17 58,17 C72,17 74,3 92,3"
+                  stroke="url(#trailGrad)"
+                  strokeWidth="0.5"
+                  strokeDasharray="0.5 3"
+                  strokeLinecap="round"
+                />
+                <defs>
+                  <linearGradient id="trailGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#E8A33D" stopOpacity="0.55" />
+                    <stop offset="50%" stopColor="#9088C9" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#E8A33D" stopOpacity="0.55" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              <div className="grid gap-12 sm:grid-cols-3">
+                {[
+                  {
+                    icon: (
+                      <path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1-1-2-1-3 2 1 3 3 3 5a5 5 0 01-10 0c0-5 4-6 5-11z" />
+                    ),
+                    title: "Just start",
+                    copy: "Open a blank page and write — no account, no setup, nothing between you and the words.",
+                    offset: "sm:mt-10",
+                  },
+                  {
+                    icon: (
+                      <>
+                        <circle cx="5" cy="6" r="2.2" />
+                        <circle cx="19" cy="6" r="2.2" />
+                        <circle cx="12" cy="19" r="2.2" />
+                        <path d="M6.9 7.3L10.5 17M17.1 7.3L13.5 17M7.2 6h9.6" />
+                      </>
+                    ),
+                    title: "Give it shape",
+                    copy: "When you're ready, save the story, map who's in it, and gather a moodboard for the feel of it.",
+                    offset: "sm:mt-0",
+                  },
+                  {
+                    icon: (
+                      <>
+                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                        <path d="M3 10h18M8 2v4M16 2v4" />
+                        <path d="M8 15l2.5 2.5L16 12" />
+                      </>
+                    ),
+                    title: "Return, and return again",
+                    copy: "A new prompt each day keeps the streak burning, and your workshop tracks every word you've written.",
+                    offset: "sm:mt-10",
+                  },
+                ].map((step, i) => (
+                  <motion.div
+                    key={step.title}
+                    initial={{ opacity: 0, y: 14 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-40px" }}
+                    transition={{ duration: 0.45, delay: i * 0.12, ease: "easeOut" }}
+                    className={`relative text-center sm:text-left ${step.offset}`}
+                  >
+                    <span className="relative inline-flex w-12 h-12 rounded-full items-center justify-center mb-4 mx-auto sm:mx-0 bg-ink border-2 border-lamp/40 shadow-[0_0_22px_rgba(232,163,61,0.18)]">
+                      <svg
+                        width="19"
+                        height="19"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#E8A33D"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        {step.icon}
+                      </svg>
+                    </span>
+                    <p className="font-mono text-[10px] text-faint mb-1.5">0{i + 1}</p>
+                    <h3 className="font-serif text-lg text-parchment mb-1.5">{step.title}</h3>
+                    <p className="text-sm text-muted leading-relaxed max-w-[220px] mx-auto sm:mx-0">
+                      {step.copy}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
       )}
+
+      {!user && <FAQ />}
 
       {glimpses.length > 0 && (
         <section className="relative px-8 pb-24 pt-4">

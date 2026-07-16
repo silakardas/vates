@@ -13,6 +13,7 @@ import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useState } from "react";
 import WordLookup from "./WordLookup";
+import QuoteCard from "./QuoteCard";
 
 const TEXT_COLORS = [
   { value: "#3A3226", label: "ink" },
@@ -51,6 +52,8 @@ export default function Editor(props: {
   onChange: (html: string, wordCount: number) => void;
 }) {
   const [lookup, setLookup] = useState<{ word: string; x: number; y: number } | null>(null);
+  const [quoteText, setQuoteText] = useState<string | null>(null);
+  const [quoteHint, setQuoteHint] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -105,6 +108,18 @@ export default function Editor(props: {
       return;
     }
     editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+  }
+
+  function handleQuoteCard() {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+      setQuoteHint(true);
+      setTimeout(() => setQuoteHint(false), 1600);
+      return;
+    }
+    const text = editor.state.doc.textBetween(from, to, " ").trim();
+    if (text) setQuoteText(text);
   }
 
   function handleDoubleClick(e: React.MouseEvent) {
@@ -447,6 +462,42 @@ export default function Editor(props: {
         >
           Tx
         </motion.button>
+        <div className="w-px h-5 bg-black/15" />
+
+        <div className="relative">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handleQuoteCard}
+            title="Share selection as image"
+            className="w-7 h-7 rounded border bg-white border-black/15 flex items-center justify-center"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#3A3226"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <circle cx="8.5" cy="10.5" r="1.5" />
+              <path d="M21 15l-5-5L5 19" />
+            </svg>
+          </motion.button>
+          {quoteHint && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-9 left-1/2 -translate-x-1/2 whitespace-nowrap bg-ink text-parchment text-[11px] font-mono px-2.5 py-1.5 rounded shadow-lg z-10"
+            >
+              Select some text first
+            </motion.div>
+          )}
+        </div>
       </div>
 
       <div className="px-12 py-11 relative flex-1 overflow-y-auto" onDoubleClick={handleDoubleClick}>
@@ -462,6 +513,8 @@ export default function Editor(props: {
           onClose={() => setLookup(null)}
         />
       )}
+
+      {quoteText && <QuoteCard text={quoteText} onClose={() => setQuoteText(null)} />}
     </motion.div>
   );
 }

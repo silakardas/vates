@@ -206,30 +206,58 @@ export default function Home() {
             <div className="grid gap-8 sm:grid-cols-3 sm:divide-x sm:divide-parchment/10">
               {[
                 {
-                  n: "01",
+                  icon: (
+                    <path d="M12 2c1 4-3 5-3 9a3 3 0 006 0c0-1-1-2-1-3 2 1 3 3 3 5a5 5 0 01-10 0c0-5 4-6 5-11z" />
+                  ),
                   title: "Begin",
                   copy: "Jump straight into the editor and start typing — no account needed to try it out.",
                 },
                 {
-                  n: "02",
-                  title: "Keep it",
-                  copy: "Make a free account in seconds to save your stories, characters, and notes for good.",
+                  icon: (
+                    <>
+                      <circle cx="5" cy="6" r="2.2" />
+                      <circle cx="19" cy="6" r="2.2" />
+                      <circle cx="12" cy="19" r="2.2" />
+                      <path d="M6.9 7.3L10.5 17M17.1 7.3L13.5 17M7.2 6h9.6" />
+                    </>
+                  ),
+                  title: "Map it out",
+                  copy: "Save your stories for good, then sketch a map of your characters and events, and build a moodboard for each one.",
                 },
                 {
-                  n: "03",
+                  icon: (
+                    <>
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <path d="M3 10h18M8 2v4M16 2v4" />
+                      <path d="M8 15l2.5 2.5L16 12" />
+                    </>
+                  ),
                   title: "Build a habit",
                   copy: "Follow the daily challenge, keep a streak alive, and watch your words add up over time.",
                 },
               ].map((step, i) => (
                 <motion.div
-                  key={step.n}
+                  key={step.title}
                   initial={{ opacity: 0, y: 10 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-40px" }}
                   transition={{ duration: 0.4, delay: i * 0.08, ease: "easeOut" }}
                   className="sm:px-6 first:sm:pl-0 last:sm:pr-0 text-center sm:text-left"
                 >
-                  <span className="font-mono text-xs text-lamp block mb-2">{step.n}</span>
+                  <span className="w-9 h-9 rounded-full bg-lamp/10 border border-lamp/30 flex items-center justify-center mb-3 mx-auto sm:mx-0">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#E8A33D"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      {step.icon}
+                    </svg>
+                  </span>
                   <h3 className="font-serif text-lg text-parchment mb-1.5">{step.title}</h3>
                   <p className="text-sm text-muted leading-relaxed">{step.copy}</p>
                 </motion.div>

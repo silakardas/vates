@@ -5,18 +5,18 @@ import { useState } from "react";
 
 export default function EmberField() {
   const [embers] = useState(() =>
-    Array.from({ length: 14 }, (_, i) => ({
+    Array.from({ length: 28 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
-      delay: Math.random() * 6,
-      duration: 6 + Math.random() * 5,
+      delay: Math.random() * 8,
+      duration: 7 + Math.random() * 6,
       size: 2 + Math.random() * 2.5,
       drift: (Math.random() - 0.5) * 40,
     }))
   );
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
       {embers.map((e) => (
         <motion.span
           key={e.id}

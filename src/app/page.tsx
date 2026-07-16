@@ -52,11 +52,10 @@ export default function Home() {
 
   return (
     <>
+      <EmberField />
       <Header />
       {todaysPrompt && <ChallengeBanner prompt={todaysPrompt} />}
       <main className="relative flex flex-col items-center justify-center text-center px-8 overflow-hidden text-parchment" style={{ minHeight: "calc(100vh - 121px)" }}>
-        <EmberField />
-
         <AnimatePresence>
           {intro && (
             <motion.div

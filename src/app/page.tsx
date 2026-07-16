@@ -55,7 +55,7 @@ export default function Home() {
       <EmberField />
       <Header />
       {todaysPrompt && <ChallengeBanner prompt={todaysPrompt} />}
-      <main className="relative flex flex-col items-center justify-center text-center px-8 overflow-hidden text-parchment" style={{ minHeight: "calc(100vh - 121px)" }}>
+      <main className="relative flex flex-col items-center justify-center text-center px-5 sm:px-8 overflow-hidden text-parchment min-h-[calc(100svh-89px)] sm:min-h-[calc(100svh-121px)]">
         <AnimatePresence>
           {intro && (
             <motion.div
@@ -117,7 +117,7 @@ export default function Home() {
       </main>
 
       {!user && (
-        <section className="relative px-8 pb-16">
+        <section className="relative px-5 sm:px-8 pb-16">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center gap-4 mb-12">
               <span className="h-px flex-1 bg-parchment/10" />
@@ -183,7 +183,7 @@ export default function Home() {
       )}
 
       {!user && (
-        <section className="relative px-8 pb-24 pt-4">
+        <section className="relative px-5 sm:px-8 pb-24 pt-4">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center gap-4 mb-14">
               <span className="h-px flex-1 bg-parchment/10" />
@@ -292,7 +292,7 @@ export default function Home() {
       {!user && <FAQ />}
 
       {glimpses.length > 0 && (
-        <section className="relative px-8 pb-24 pt-4">
+        <section className="relative px-5 sm:px-8 pb-24 pt-4">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center gap-4 mb-10">
               <span className="h-px flex-1 bg-parchment/10" />

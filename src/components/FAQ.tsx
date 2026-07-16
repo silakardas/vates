@@ -39,7 +39,7 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="relative px-8 pb-16">
+    <section className="relative px-5 sm:px-8 pb-16">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-4 mb-4">
           <span className="h-px flex-1 bg-parchment/10" />
@@ -77,7 +77,7 @@ export default function FAQ() {
                       transition={{ duration: 0.25, ease: "easeOut" }}
                       className="overflow-hidden"
                     >
-                      <p className="text-sm text-muted leading-relaxed pb-5 pr-8">{item.a}</p>
+                      <p className="text-sm text-muted leading-relaxed pb-5 pr-0 sm:pr-8">{item.a}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>

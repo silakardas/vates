@@ -84,7 +84,9 @@ export default function StoryPage() {
             <input
               value={story.title}
               onChange={(e) => updateStory(story.id, { title: e.target.value })}
-              className="font-serif text-3xl bg-transparent outline-none border-b border-transparent focus:border-lamp/40 transition-colors w-full"
+              className={`font-serif text-3xl bg-transparent outline-none border-b border-transparent focus:border-lamp/40 transition-colors w-full ${
+                story.title.toLowerCase().includes("vates") ? "title-vates-glow" : ""
+              }`}
             />
           </div>
           <div className="flex items-center gap-3 mb-8">

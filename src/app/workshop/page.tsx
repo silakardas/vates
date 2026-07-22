@@ -57,8 +57,8 @@ export default function Workshop() {
   return (
     <>
       <Header />
-      <div className="flex" style={{ minHeight: "calc(100vh - 89px)" }}>
-        <main className="flex-1 min-w-0 text-parchment px-8 py-14 space-y-14">
+      <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 89px)" }}>
+        <main className="flex-1 min-w-0 text-parchment px-5 py-10 sm:px-8 sm:py-14 space-y-10 sm:space-y-14">
           <div>
             <p className="font-mono text-xs text-muted uppercase tracking-wide mb-6">
               Welcome back

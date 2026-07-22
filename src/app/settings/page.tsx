@@ -127,7 +127,7 @@ export default function SettingsPage() {
     return (
       <>
         <Header />
-        <main className="px-8 py-24 text-center">
+        <main className="px-5 sm:px-8 py-24 text-center">
           <p className="text-muted mb-4">You&apos;re not logged in.</p>
           <Link href="/login" className="text-lamp hover:underline text-sm">
             Go to login →
@@ -264,20 +264,26 @@ export default function SettingsPage() {
   return (
     <>
       <Header />
-      <main className="text-parchment px-8 py-16 max-w-5xl mx-auto">
+      <main className="text-parchment px-5 sm:px-8 py-16 max-w-5xl mx-auto">
         <h1 className="font-serif text-2xl mb-1">Settings</h1>
-        <p className="text-sm text-muted mb-10">
+        <p className="text-sm text-muted mb-4 sm:mb-10">
           Manage your profile, writing goals, and account.
         </p>
+        <Link
+          href="/account"
+          className="lg:hidden inline-block mb-6 text-xs text-faint hover:text-muted transition-colors"
+        >
+          ← Back to account
+        </Link>
 
-        <div className="flex gap-10">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-10">
           {/* Sidebar */}
-          <nav className="w-44 flex-shrink-0 space-y-1">
+          <nav className="flex flex-row gap-2 overflow-x-auto pb-1 lg:pb-0 lg:flex-col lg:gap-1 lg:w-44 lg:flex-shrink-0">
             {TABS.map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors ${
+                className={`flex-shrink-0 whitespace-nowrap text-left px-4 py-2.5 rounded-lg text-sm transition-colors lg:w-full ${
                   tab === t
                     ? "bg-lamp/15 text-lamp border border-lamp/30"
                     : "text-muted hover:text-parchment border border-transparent"
@@ -288,7 +294,7 @@ export default function SettingsPage() {
             ))}
             <Link
               href="/account"
-              className="block mt-4 px-4 py-2.5 text-xs text-faint hover:text-muted transition-colors"
+              className="hidden lg:block mt-4 px-4 py-2.5 text-xs text-faint hover:text-muted transition-colors"
             >
               ← Back to account
             </Link>

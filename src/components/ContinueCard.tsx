@@ -19,7 +19,7 @@ export default function ContinueCard(props: {
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
-      className="relative bg-ink-soft rounded-2xl px-9 py-8 overflow-hidden"
+      className="relative bg-ink-soft rounded-2xl px-6 py-6 sm:px-9 sm:py-8 overflow-hidden"
     >
       <motion.div
         className="absolute top-0 left-0 h-[3px] bg-gradient-to-r from-lamp via-lamp/40 to-transparent"

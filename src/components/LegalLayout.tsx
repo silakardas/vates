@@ -10,7 +10,7 @@ export default function LegalLayout(props: {
   return (
     <>
       <Header />
-      <main className="text-parchment px-8 py-16">
+      <main className="text-parchment px-5 sm:px-8 py-16">
         <div className="max-w-2xl mx-auto">
           <h1 className="font-serif text-3xl mb-2">{props.title}</h1>
           <p className="font-mono text-xs text-faint mb-10">

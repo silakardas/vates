@@ -51,7 +51,7 @@ export default function StoryPage() {
     return (
       <>
         <Header />
-        <main className="text-parchment px-8 py-24 text-center">
+        <main className="text-parchment px-5 sm:px-8 py-24 text-center">
           <p className="text-muted">This story doesn&apos;t exist (yet).</p>
           <button
             onClick={() => router.push("/workshop")}

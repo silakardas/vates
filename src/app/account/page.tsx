@@ -30,7 +30,7 @@ export default function AccountPage() {
     return (
       <>
         <Header />
-        <main className="px-8 py-24 text-center">
+        <main className="px-5 sm:px-8 py-24 text-center">
           <p className="text-muted mb-4">You&apos;re not logged in.</p>
           <Link href="/login" className="text-lamp hover:underline text-sm">
             Go to login →
@@ -76,7 +76,7 @@ export default function AccountPage() {
   return (
     <>
       <Header />
-      <main className="px-8 py-16 max-w-2xl mx-auto">
+      <main className="px-5 sm:px-8 py-16 max-w-2xl mx-auto">
         {/* Identity + stats */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -132,7 +132,7 @@ export default function AccountPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-          className="grid grid-cols-4 gap-4 mb-16"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-16"
         >
           <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{stories.length}</p>
@@ -166,7 +166,7 @@ export default function AccountPage() {
           </p>
 
           {user.favoriteGenre || user.recurringUniverse ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
                 <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
                   Favorite genre

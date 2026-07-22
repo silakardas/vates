@@ -36,7 +36,7 @@ export default function WorkshopStats(props: {
   ];
 
   return (
-    <aside className="w-80 flex-shrink-0 border-l border-parchment/10 p-6 space-y-8">
+    <aside className="w-full lg:w-80 lg:flex-shrink-0 border-t lg:border-t-0 lg:border-l border-parchment/10 p-5 sm:p-6 space-y-8">
       <div>
         <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-3">
           Search your stories

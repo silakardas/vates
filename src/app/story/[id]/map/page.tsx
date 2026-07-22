@@ -87,7 +87,7 @@ export default function StoryMapPage() {
     return (
       <>
         <Header />
-        <main className="text-parchment px-8 py-24 text-center">
+        <main className="text-parchment px-5 sm:px-8 py-24 text-center">
           <p className="text-muted">This story doesn&apos;t exist (yet).</p>
           <button
             onClick={() => router.push("/workshop")}
@@ -160,9 +160,9 @@ export default function StoryMapPage() {
   return (
     <>
       <Header />
-      <div className="flex" style={{ minHeight: "calc(100vh - 89px)" }}>
+      <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 89px)" }}>
         <main className="flex-1 min-w-0 flex flex-col">
-          <div className="flex items-center justify-between px-8 pt-6 pb-4 flex-wrap gap-3">
+          <div className="flex items-center justify-between px-5 sm:px-8 pt-6 pb-4 flex-wrap gap-3">
             <button
               onClick={() => router.push(`/story/${story.id}`)}
               className="text-muted font-mono text-xs hover:text-lamp transition-colors"
@@ -187,8 +187,8 @@ export default function StoryMapPage() {
 
           <div
             ref={canvasRef}
-            className="relative flex-1 mx-8 mb-8 rounded-xl border border-parchment/10 bg-ink-soft overflow-auto"
-            style={{ minHeight: 480 }}
+            className="relative flex-1 mx-5 mb-5 sm:mx-8 sm:mb-8 rounded-xl border border-parchment/10 bg-ink-soft overflow-auto"
+            style={{ minHeight: 360 }}
           >
             {nodes.length === 0 && (
               <p className="absolute inset-0 flex items-center justify-center text-sm text-faint text-center px-8">
@@ -254,7 +254,7 @@ export default function StoryMapPage() {
           </div>
         </main>
 
-        <aside className="w-80 shrink-0 border-l border-parchment/10 px-5 py-6 overflow-y-auto">
+        <aside className="w-full lg:w-80 lg:shrink-0 max-h-[70vh] lg:max-h-none border-t lg:border-t-0 lg:border-l border-parchment/10 px-5 py-6 overflow-y-auto">
           {!selectedNode && (
             <p className="text-xs text-faint leading-relaxed">
               Click a character or event to edit it, link it to others, or

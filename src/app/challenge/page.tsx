@@ -64,15 +64,15 @@ export default function ChallengePage() {
   return (
     <>
       <Header />
-      <div className="flex" style={{ minHeight: "calc(100vh - 89px)" }}>
-        <main className="flex-1 min-w-0 text-parchment px-8 py-16">
+      <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 89px)" }}>
+        <main className="flex-1 min-w-0 text-parchment px-5 py-10 sm:px-8 sm:py-16">
           <div className="max-w-xl mb-16">
             <p className="font-mono text-xs text-lamp uppercase tracking-wide mb-6 flex items-center gap-3">
               Today&apos;s challenge
               <span className="text-faint normal-case">· new prompt daily</span>
             </p>
 
-            <div className="relative bg-ink-soft rounded-2xl px-9 py-10 overflow-hidden mb-6">
+            <div className="relative bg-ink-soft rounded-2xl px-6 py-8 sm:px-9 sm:py-10 overflow-hidden mb-6">
               <motion.div
                 className="absolute top-0 left-0 h-[3px] bg-gradient-to-r from-lamp via-lamp/40 to-transparent"
                 initial={{ width: 0 }}
@@ -156,7 +156,7 @@ export default function ChallengePage() {
           </div>
         </main>
 
-        <aside className="w-80 flex-shrink-0 border-l border-parchment/10 p-6 space-y-8">
+        <aside className="w-full lg:w-80 lg:flex-shrink-0 border-t lg:border-t-0 lg:border-l border-parchment/10 p-5 sm:p-6 space-y-8">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-4">
               Last 28 days

@@ -19,6 +19,24 @@ export default function WordLookup(props: {
 }) {
   const [result, setResult] = useState<LookupResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pos, setPos] = useState({ top: props.y + 12, left: props.x });
+
+  useEffect(() => {
+    // Clamp after mount, once we know the viewport size (avoids SSR
+    // mismatches and keeps the card fully on-screen on small phones).
+    const margin = 12;
+    const width = 256; // matches w-64
+    const estimatedHeight = 220;
+    const left = Math.min(
+      Math.max(props.x, margin),
+      Math.max(margin, window.innerWidth - width - margin)
+    );
+    const top = Math.min(
+      Math.max(props.y + 12, margin),
+      Math.max(margin, window.innerHeight - estimatedHeight - margin)
+    );
+    setPos({ top, left });
+  }, [props.x, props.y]);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,8 +127,8 @@ export default function WordLookup(props: {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: -6 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
-        className="fixed z-50 w-64 bg-ink border border-lamp/30 rounded-lg p-4 shadow-2xl"
-        style={{ top: props.y + 12, left: Math.min(props.x, window.innerWidth - 280) }}
+        className="fixed z-50 w-64 max-w-[calc(100vw-24px)] bg-ink border border-lamp/30 rounded-lg p-4 shadow-2xl"
+        style={{ top: pos.top, left: pos.left }}
       >
         <div className="flex items-start justify-between mb-1">
           <span className="font-serif text-lg text-lamp">{props.word}</span>

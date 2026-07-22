@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function GrammarSuggestion(props: {
@@ -10,6 +11,23 @@ export default function GrammarSuggestion(props: {
   onApply: (replacement: string) => void;
   onClose: () => void;
 }) {
+  const [pos, setPos] = useState({ top: props.y + 12, left: props.x });
+
+  useEffect(() => {
+    const margin = 12;
+    const width = 256; // matches w-64
+    const estimatedHeight = 160;
+    const left = Math.min(
+      Math.max(props.x, margin),
+      Math.max(margin, window.innerWidth - width - margin)
+    );
+    const top = Math.min(
+      Math.max(props.y + 12, margin),
+      Math.max(margin, window.innerHeight - estimatedHeight - margin)
+    );
+    setPos({ top, left });
+  }, [props.x, props.y]);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -17,8 +35,8 @@ export default function GrammarSuggestion(props: {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: -6 }}
         transition={{ duration: 0.15, ease: "easeOut" }}
-        className="fixed z-50 w-64 bg-ink border border-crimson/30 rounded-lg p-4 shadow-2xl"
-        style={{ top: props.y + 12, left: Math.min(props.x, window.innerWidth - 280) }}
+        className="fixed z-50 w-64 max-w-[calc(100vw-24px)] bg-ink border border-crimson/30 rounded-lg p-4 shadow-2xl"
+        style={{ top: pos.top, left: pos.left }}
       >
         <div className="flex items-start justify-between mb-2">
           <span className="font-mono text-[10px] uppercase tracking-wide text-crimson">

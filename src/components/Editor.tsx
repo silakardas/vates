@@ -12,7 +12,7 @@ import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import TextAlign from "@tiptap/extension-text-align";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import WordLookup from "./WordLookup";
 import QuoteCard from "./QuoteCard";
 import GrammarSuggestion from "./GrammarSuggestion";
@@ -161,6 +161,49 @@ function transformCase(text: string, mode: CaseMode): string {
   }
 }
 
+const WORD_CHAR = /[a-zA-ZçğıöşüÇĞİÖŞÜ'-]/;
+
+// Finds the word under a touch point, since touch devices have no reliable
+// "double click on a word" gesture the way a mouse does.
+function getWordAtPoint(clientX: number, clientY: number): { word: string; rect: DOMRect } | null {
+  const doc = document as Document & {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+  };
+
+  let range: Range | null = null;
+  if (doc.caretRangeFromPoint) {
+    range = doc.caretRangeFromPoint(clientX, clientY);
+  } else if (doc.caretPositionFromPoint) {
+    const pos = doc.caretPositionFromPoint(clientX, clientY);
+    if (pos) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+
+  if (!range || range.startContainer.nodeType !== Node.TEXT_NODE) return null;
+
+  const textNode = range.startContainer as Text;
+  const text = textNode.textContent ?? "";
+  let start = range.startOffset;
+  let end = range.startOffset;
+
+  if (!WORD_CHAR.test(text[start] ?? "") && !WORD_CHAR.test(text[start - 1] ?? "")) return null;
+
+  while (start > 0 && WORD_CHAR.test(text[start - 1])) start--;
+  while (end < text.length && WORD_CHAR.test(text[end])) end++;
+
+  const word = text.slice(start, end).trim();
+  if (!word) return null;
+
+  const wordRange = document.createRange();
+  wordRange.setStart(textNode, start);
+  wordRange.setEnd(textNode, end);
+  return { word, rect: wordRange.getBoundingClientRect() };
+}
+
 export default function Editor(props: {
   content: string;
   onChange: (html: string, wordCount: number) => void;
@@ -302,6 +345,35 @@ export default function Editor(props: {
     const word = selection?.toString().trim();
     if (word && /^[a-zA-ZçğıöşüÇĞİÖŞÜ'-]+$/.test(word)) {
       setLookup({ word, x: e.clientX, y: e.clientY });
+    }
+  }
+
+  // Mobile browsers don't fire a reliable "double click" from two taps, and
+  // a real double tap usually just zooms the page instead. Detect it
+  // ourselves from raw touch events and look up the word under the tap.
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+
+    const now = Date.now();
+    const last = lastTapRef.current;
+    const isDoubleTap =
+      !!last &&
+      now - last.time < 350 &&
+      Math.abs(touch.clientX - last.x) < 24 &&
+      Math.abs(touch.clientY - last.y) < 24;
+
+    if (isDoubleTap) {
+      lastTapRef.current = null;
+      const found = getWordAtPoint(touch.clientX, touch.clientY);
+      if (found) {
+        e.preventDefault();
+        setLookup({ word: found.word, x: found.rect.left, y: found.rect.bottom });
+      }
+    } else {
+      lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
     }
   }
 
@@ -723,9 +795,10 @@ export default function Editor(props: {
       </div>
 
       <div
-        className="px-4 py-6 sm:px-8 sm:py-9 lg:px-12 lg:py-11 relative flex-1 overflow-y-auto"
+        className="px-4 py-6 sm:px-8 sm:py-9 lg:px-12 lg:py-11 relative flex-1 overflow-y-auto touch-manipulation"
         onDoubleClick={handleDoubleClick}
         onClick={handleClick}
+        onTouchEnd={handleTouchEnd}
       >
         <EditorContent editor={editor} />
       </div>

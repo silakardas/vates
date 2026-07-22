@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { Mark } from "@tiptap/pm/model";
 import { motion } from "framer-motion";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, FontSize } from "@tiptap/extension-text-style";
@@ -14,6 +15,8 @@ import TextAlign from "@tiptap/extension-text-align";
 import { useEffect, useState } from "react";
 import WordLookup from "./WordLookup";
 import QuoteCard from "./QuoteCard";
+import GrammarSuggestion from "./GrammarSuggestion";
+import { GrammarCheck, type GrammarMatch } from "@/lib/GrammarCheck";
 
 const TEXT_COLORS = [
   { value: "#3A3226", label: "ink" },
@@ -47,6 +50,117 @@ const HEADING_OPTIONS = [
   { label: "Heading 3", value: "3" },
 ];
 
+type CaseMode = "upper" | "lower" | "title" | "sentence" | "toggle";
+
+// Shared line-art icon set: thin, rounded pen strokes so every toolbar glyph
+// reads as one hand, but each function group carries its own accent color
+// pulled from the site's existing palette so the bar doesn't read as flat.
+function ToolbarIcon({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="15"
+      height="15"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      {children}
+    </svg>
+  );
+}
+
+const IconUndo = () => (
+  <ToolbarIcon className="text-[#B8862F]">
+    <path d="M8 7 4 11l4 4" />
+    <path d="M4 11h11a5 5 0 0 1 0 10h-3" />
+  </ToolbarIcon>
+);
+
+const IconRedo = () => (
+  <ToolbarIcon className="text-[#B8862F]">
+    <path d="m16 7 4 4-4 4" />
+    <path d="M20 11H9a5 5 0 0 0 0 10h3" />
+  </ToolbarIcon>
+);
+
+const IconAlignLeft = ({ active }: { active: boolean }) => (
+  <ToolbarIcon className={active ? "" : "text-[#3D5A80]"}>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="4" y1="12" x2="14" y2="12" />
+    <line x1="4" y1="18" x2="17" y2="18" />
+  </ToolbarIcon>
+);
+
+const IconAlignCenter = ({ active }: { active: boolean }) => (
+  <ToolbarIcon className={active ? "" : "text-[#3D5A80]"}>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="7" y1="12" x2="17" y2="12" />
+    <line x1="5.5" y1="18" x2="18.5" y2="18" />
+  </ToolbarIcon>
+);
+
+const IconAlignRight = ({ active }: { active: boolean }) => (
+  <ToolbarIcon className={active ? "" : "text-[#3D5A80]"}>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="10" y1="12" x2="20" y2="12" />
+    <line x1="7" y1="18" x2="20" y2="18" />
+  </ToolbarIcon>
+);
+
+const IconLink = ({ active }: { active: boolean }) => (
+  <ToolbarIcon className={active ? "" : "text-[#7A5A79]"}>
+    <path d="M9.5 14.5 15 9" />
+    <path d="m11 6.5 1-1a3.6 3.6 0 0 1 5 5l-1 1" />
+    <path d="m13 17.5-1 1a3.6 3.6 0 0 1-5-5l1-1" />
+  </ToolbarIcon>
+);
+
+const IconShare = () => (
+  <ToolbarIcon className="text-[#A23B3B]">
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="8.5" cy="10.5" r="1.5" />
+    <path d="M21 15l-5-5L5 19" />
+  </ToolbarIcon>
+);
+
+// "tr-TR" locale so İ/I and i/ı map correctly instead of the ASCII default.
+function transformCase(text: string, mode: CaseMode): string {
+  switch (mode) {
+    case "upper":
+      return text.toLocaleUpperCase("tr-TR");
+    case "lower":
+      return text.toLocaleLowerCase("tr-TR");
+    case "title":
+      return text.replace(
+        /\S+/g,
+        (word) =>
+          word.charAt(0).toLocaleUpperCase("tr-TR") + word.slice(1).toLocaleLowerCase("tr-TR")
+      );
+    case "sentence":
+      return text
+        .toLocaleLowerCase("tr-TR")
+        .replace(/(^\s*\S|[.!?]\s+\S)/g, (m) => m.toLocaleUpperCase("tr-TR"));
+    case "toggle":
+      return text
+        .split("")
+        .map((ch) => {
+          const upper = ch.toLocaleUpperCase("tr-TR");
+          return ch === upper ? ch.toLocaleLowerCase("tr-TR") : upper;
+        })
+        .join("");
+  }
+}
+
 export default function Editor(props: {
   content: string;
   onChange: (html: string, wordCount: number) => void;
@@ -54,6 +168,10 @@ export default function Editor(props: {
   const [lookup, setLookup] = useState<{ word: string; x: number; y: number } | null>(null);
   const [quoteText, setQuoteText] = useState<string | null>(null);
   const [quoteHint, setQuoteHint] = useState(false);
+  const [caseHint, setCaseHint] = useState(false);
+  const [grammarIssue, setGrammarIssue] = useState<
+    (GrammarMatch & { x: number; y: number }) | null
+  >(null);
 
   const editor = useEditor({
     extensions: [
@@ -71,6 +189,7 @@ export default function Editor(props: {
         HTMLAttributes: { class: "underline text-[#3D5A80]" },
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      GrammarCheck.configure({ language: "en-US" }),
     ],
     content: props.content,
     immediatelyRender: false,
@@ -110,6 +229,43 @@ export default function Editor(props: {
     editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
   }
 
+  function handleCaseChange(mode: CaseMode) {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+      setCaseHint(true);
+      setTimeout(() => setCaseHint(false), 1600);
+      return;
+    }
+
+    // Collect each text node touching the selection along with its own
+    // marks, so bold/italic/color/etc. survive the rewrite. Positions are
+    // captured up front and applied back-to-front so earlier replacements
+    // never invalidate later ones.
+    const segments: { from: number; to: number; text: string; marks: readonly Mark[] }[] = [];
+    editor.state.doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isText || !node.text) return;
+      const segFrom = Math.max(pos, from);
+      const segTo = Math.min(pos + node.nodeSize, to);
+      if (segFrom < segTo) {
+        segments.push({
+          from: segFrom,
+          to: segTo,
+          text: node.text.slice(segFrom - pos, segTo - pos),
+          marks: node.marks,
+        });
+      }
+    });
+
+    let tr = editor.state.tr;
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i];
+      tr = tr.replaceWith(seg.from, seg.to, editor.schema.text(transformCase(seg.text, mode), seg.marks));
+    }
+    editor.view.dispatch(tr);
+    editor.commands.focus();
+  }
+
   function handleQuoteCard() {
     if (!editor) return;
     const { from, to, empty } = editor.state.selection;
@@ -120,6 +276,25 @@ export default function Editor(props: {
     }
     const text = editor.state.doc.textBetween(from, to, " ").trim();
     if (text) setQuoteText(text);
+  }
+
+  function handleClick(e: React.MouseEvent) {
+    const target = (e.target as HTMLElement).closest(".grammar-error") as HTMLElement | null;
+    if (!target || !editor) return;
+    const index = Number(target.dataset.matchIndex);
+    const match = editor.storage.grammarCheck?.matches?.[index];
+    if (!match) return;
+    setGrammarIssue({ ...match, x: e.clientX, y: e.clientY });
+  }
+
+  function applyGrammarFix(replacement: string) {
+    if (!editor || !grammarIssue) return;
+    editor
+      .chain()
+      .focus()
+      .insertContentAt({ from: grammarIssue.from, to: grammarIssue.to }, replacement)
+      .run();
+    setGrammarIssue(null);
   }
 
   function handleDoubleClick(e: React.MouseEvent) {
@@ -139,7 +314,7 @@ export default function Editor(props: {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="bg-parchment text-[#3A3226] rounded-lg overflow-hidden shadow-2xl h-full flex flex-col"
     >
-      <div className="flex items-center gap-4 px-5 py-3 bg-parchment-dim border-b border-black/10 flex-wrap">
+      <div className="flex items-center gap-2 sm:gap-4 px-3 py-2.5 sm:px-5 sm:py-3 bg-parchment-dim border-b border-black/10 flex-wrap">
         <div className="flex items-center gap-1">
           <motion.button
             whileHover={{ scale: 1.08 }}
@@ -147,9 +322,9 @@ export default function Editor(props: {
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
             title="Undo"
-            className="w-7 h-7 rounded border font-serif text-sm bg-white border-black/15 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-7 h-7 rounded border bg-white border-black/15 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            ↺
+            <IconUndo />
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.08 }}
@@ -157,16 +332,16 @@ export default function Editor(props: {
             onClick={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
             title="Redo"
-            className="w-7 h-7 rounded border font-serif text-sm bg-white border-black/15 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-7 h-7 rounded border bg-white border-black/15 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            ↻
+            <IconRedo />
           </motion.button>
         </div>
 
         <div className="w-px h-5 bg-black/15" />
 
         <div className="flex items-center gap-2">
-          <label className="font-mono text-[10px] uppercase text-[#7A6E58]">Style</label>
+          <label className="hidden sm:inline font-mono text-[10px] uppercase text-[#7A6E58]">Style</label>
           <select
             className="font-serif text-sm px-2 py-1 rounded border border-black/15 bg-white cursor-pointer transition-shadow hover:shadow-sm"
             value={
@@ -202,7 +377,7 @@ export default function Editor(props: {
         <div className="w-px h-5 bg-black/15" />
 
         <div className="flex items-center gap-2">
-          <label className="font-mono text-[10px] uppercase text-[#7A6E58]">Font</label>
+          <label className="hidden sm:inline font-mono text-[10px] uppercase text-[#7A6E58]">Font</label>
           <select
             className="font-serif text-sm px-2 py-1 rounded border border-black/15 bg-white cursor-pointer transition-shadow hover:shadow-sm"
             onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
@@ -218,7 +393,7 @@ export default function Editor(props: {
         <div className="w-px h-5 bg-black/15" />
 
         <div className="flex items-center gap-2">
-          <label className="font-mono text-[10px] uppercase text-[#7A6E58]">Size</label>
+          <label className="hidden sm:inline font-mono text-[10px] uppercase text-[#7A6E58]">Size</label>
           <select
             className="font-serif text-sm px-2 py-1 rounded border border-black/15 bg-white cursor-pointer transition-shadow hover:shadow-sm"
             defaultValue={FONT_SIZES[1].value}
@@ -360,39 +535,39 @@ export default function Editor(props: {
             whileTap={{ scale: 0.9 }}
             onClick={() => editor.chain().focus().setTextAlign("left").run()}
             title="Align left"
-            className={`w-7 h-7 rounded border font-mono text-xs ${
+            className={`w-7 h-7 rounded border flex items-center justify-center ${
               editor.isActive({ textAlign: "left" })
                 ? "bg-lamp border-lamp text-ink"
                 : "bg-white border-black/15"
             }`}
           >
-            ⇤
+            <IconAlignLeft active={editor.isActive({ textAlign: "left" })} />
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => editor.chain().focus().setTextAlign("center").run()}
             title="Align center"
-            className={`w-7 h-7 rounded border font-mono text-xs ${
+            className={`w-7 h-7 rounded border flex items-center justify-center ${
               editor.isActive({ textAlign: "center" })
                 ? "bg-lamp border-lamp text-ink"
                 : "bg-white border-black/15"
             }`}
           >
-            ⇔
+            <IconAlignCenter active={editor.isActive({ textAlign: "center" })} />
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => editor.chain().focus().setTextAlign("right").run()}
             title="Align right"
-            className={`w-7 h-7 rounded border font-mono text-xs ${
+            className={`w-7 h-7 rounded border flex items-center justify-center ${
               editor.isActive({ textAlign: "right" })
                 ? "bg-lamp border-lamp text-ink"
                 : "bg-white border-black/15"
             }`}
           >
-            ⇥
+            <IconAlignRight active={editor.isActive({ textAlign: "right" })} />
           </motion.button>
         </div>
 
@@ -406,7 +581,7 @@ export default function Editor(props: {
           className={`w-7 h-7 rounded border font-serif text-base leading-none ${
             editor.isActive("blockquote")
               ? "bg-lamp border-lamp text-ink"
-              : "bg-white border-black/15"
+              : "bg-white border-black/15 text-[#3D6B5C]"
           }`}
         >
           &ldquo;
@@ -419,7 +594,7 @@ export default function Editor(props: {
           className={`w-7 h-7 rounded border font-mono text-xs ${
             editor.isActive("bulletList")
               ? "bg-lamp border-lamp text-ink"
-              : "bg-white border-black/15"
+              : "bg-white border-black/15 text-[#3D6B5C]"
           }`}
         >
           •≡
@@ -432,7 +607,7 @@ export default function Editor(props: {
           className={`w-7 h-7 rounded border font-mono text-xs ${
             editor.isActive("orderedList")
               ? "bg-lamp border-lamp text-ink"
-              : "bg-white border-black/15"
+              : "bg-white border-black/15 text-[#3D5A80]"
           }`}
         >
           1.≡
@@ -445,23 +620,83 @@ export default function Editor(props: {
           whileTap={{ scale: 0.9 }}
           onClick={handleSetLink}
           title={editor.isActive("link") ? "Remove link" : "Add link"}
-          className={`w-7 h-7 rounded border font-serif text-sm ${
+          className={`w-7 h-7 rounded border flex items-center justify-center ${
             editor.isActive("link")
               ? "bg-lamp border-lamp text-ink"
               : "bg-white border-black/15"
           }`}
         >
-          🔗
+          <IconLink active={editor.isActive("link")} />
         </motion.button>
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
           title="Clear formatting"
-          className="w-7 h-7 rounded border font-mono text-[11px] bg-white border-black/15"
+          className="w-7 h-7 rounded border font-mono text-[11px] bg-white border-black/15 text-muted"
         >
           Tx
         </motion.button>
+        <div className="w-px h-5 bg-black/15" />
+
+        <div className="relative flex items-center gap-1">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleCaseChange("upper")}
+            title="UPPERCASE"
+            className="w-7 h-7 rounded border font-mono text-[10px] bg-white border-black/15 text-[#A23B3B]"
+          >
+            AA
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleCaseChange("lower")}
+            title="lowercase"
+            className="w-7 h-7 rounded border font-mono text-[10px] bg-white border-black/15 text-[#A23B3B]"
+          >
+            aa
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleCaseChange("title")}
+            title="Capitalize Each Word"
+            className="w-7 h-7 rounded border font-mono text-[10px] bg-white border-black/15 text-[#A23B3B]"
+          >
+            Aa
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleCaseChange("sentence")}
+            title="Sentence case"
+            className="w-7 h-7 rounded border font-mono text-[10px] bg-white border-black/15 text-[#A23B3B]"
+          >
+            A.
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleCaseChange("toggle")}
+            title="tOGGLE cASE"
+            className="w-7 h-7 rounded border font-mono text-[10px] bg-white border-black/15 text-[#A23B3B]"
+          >
+            aA
+          </motion.button>
+          {caseHint && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="absolute top-9 left-1/2 -translate-x-1/2 whitespace-nowrap bg-ink text-parchment text-[11px] font-mono px-2.5 py-1.5 rounded shadow-lg z-10"
+            >
+              Select some text first
+            </motion.div>
+          )}
+        </div>
+
         <div className="w-px h-5 bg-black/15" />
 
         <div className="relative">
@@ -472,20 +707,7 @@ export default function Editor(props: {
             title="Share selection as image"
             className="w-7 h-7 rounded border bg-white border-black/15 flex items-center justify-center"
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#3A3226"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="5" width="18" height="14" rx="2" />
-              <circle cx="8.5" cy="10.5" r="1.5" />
-              <path d="M21 15l-5-5L5 19" />
-            </svg>
+            <IconShare />
           </motion.button>
           {quoteHint && (
             <motion.div
@@ -500,7 +722,11 @@ export default function Editor(props: {
         </div>
       </div>
 
-      <div className="px-12 py-11 relative flex-1 overflow-y-auto" onDoubleClick={handleDoubleClick}>
+      <div
+        className="px-4 py-6 sm:px-8 sm:py-9 lg:px-12 lg:py-11 relative flex-1 overflow-y-auto"
+        onDoubleClick={handleDoubleClick}
+        onClick={handleClick}
+      >
         <EditorContent editor={editor} />
       </div>
 
@@ -515,6 +741,17 @@ export default function Editor(props: {
       )}
 
       {quoteText && <QuoteCard text={quoteText} onClose={() => setQuoteText(null)} />}
+
+      {grammarIssue && (
+        <GrammarSuggestion
+          message={grammarIssue.shortMessage}
+          replacements={grammarIssue.replacements}
+          x={grammarIssue.x}
+          y={grammarIssue.y}
+          onApply={applyGrammarFix}
+          onClose={() => setGrammarIssue(null)}
+        />
+      )}
     </motion.div>
   );
 }

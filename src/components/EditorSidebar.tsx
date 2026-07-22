@@ -61,7 +61,7 @@ export default function EditorSidebar(props: {
   }
 
   return (
-    <aside className="w-80 flex-shrink-0 border-l border-parchment/10 flex flex-col">
+    <aside className="w-full max-h-[60vh] border-t lg:max-h-none lg:w-80 lg:flex-shrink-0 lg:border-t-0 lg:border-l border-parchment/10 flex flex-col">
       <div className="grid grid-cols-2 gap-1 p-2 border-b border-parchment/10">
         {TABS.map((t, i) => (
           <button

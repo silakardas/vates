@@ -71,19 +71,19 @@ export default function StoryPage() {
   return (
     <>
       <Header />
-      <div className="flex" style={{ minHeight: "calc(100vh - 89px)" }}>
-        <main className="flex-1 min-w-0 text-parchment px-8 py-10 flex flex-col">
-          <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 89px)" }}>
+        <main className="flex-1 min-w-0 text-parchment px-4 py-6 sm:px-8 sm:py-10 flex flex-col">
+          <div className="flex items-center justify-between mb-4 sm:mb-6 gap-3">
             <button
               onClick={() => router.push("/workshop")}
-              className="text-muted font-mono text-xs hover:text-lamp transition-colors"
+              className="text-muted font-mono text-xs hover:text-lamp transition-colors whitespace-nowrap"
             >
               ← Back to workshop
             </button>
 
             <button
               onClick={() => router.push(`/story/${story.id}/map`)}
-              className="text-xs font-mono text-lamp border border-lamp/30 rounded-lg px-3 py-1.5 hover:bg-lamp/5 transition-colors"
+              className="text-xs font-mono text-lamp border border-lamp/30 rounded-lg px-3 py-1.5 hover:bg-lamp/5 transition-colors whitespace-nowrap"
             >
               ✧ Story map
             </button>
@@ -93,12 +93,12 @@ export default function StoryPage() {
             <input
               value={story.title}
               onChange={(e) => updateStory(story.id, { title: e.target.value })}
-              className={`font-serif text-3xl bg-transparent outline-none border-b border-transparent focus:border-lamp/40 transition-colors w-full ${
+              className={`font-serif text-2xl sm:text-3xl bg-transparent outline-none border-b border-transparent focus:border-lamp/40 transition-colors w-full ${
                 story.title.toLowerCase().includes("vates") ? "title-vates-glow" : ""
               }`}
             />
           </div>
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6 sm:mb-8 flex-wrap">
             <span className={`text-xs font-mono ${status.color} whitespace-nowrap`}>
               ● {status.label}
             </span>

@@ -34,6 +34,13 @@ body {
   color: var(--color-lamp-bright);
 }
 
+.grammar-error {
+  text-decoration: wavy underline var(--color-crimson);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .ProseMirror p.is-editor-empty:first-child::before {
   content: "Start writing...";
   color: #a89f8a;

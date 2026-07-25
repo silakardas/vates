@@ -63,6 +63,7 @@ type AuthContextType = {
   signup: (email: string, password: string, name: string) => Promise<{ error?: string; needsConfirmation?: boolean }>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<{ error?: string }>;
+  resetPassword: (email: string) => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateAvatar: (file: File) => Promise<{ error?: string; url?: string }>;
   updateProfile: (updates: {
@@ -156,6 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {};
   }
 
+  async function resetPassword(email: string) {
+    // Sends a "reset your password" email containing a recovery link.
+    // Supabase redirects the user back to this URL with a recovery
+    // session already attached, where they can set a new password.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    return { error: error?.message };
+  }
+
   async function updatePassword(newPassword: string) {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     return { error: error?.message };
@@ -241,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         deleteAccount,
+        resetPassword,
         updatePassword,
         updateAvatar,
         updateProfile,

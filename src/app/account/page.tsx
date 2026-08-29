@@ -235,6 +235,12 @@ export default function AccountPage() {
           className="mb-6"
         >
           <div className="flex items-center gap-6">
+            <Link
+              href={`/profile/${user.id}`}
+              className="text-sm text-muted hover:text-parchment transition-colors"
+            >
+              View public profile
+            </Link>
             <Link href="/settings" className="text-sm text-muted hover:text-parchment transition-colors">
               Settings
             </Link>

@@ -337,3 +337,66 @@ alter table public.stories
   add column if not exists relationships jsonb not null default '[]'::jsonb,
   add column if not exists tag_characters jsonb not null default '[]'::jsonb,
   add column if not exists additional_tags jsonb not null default '[]'::jsonb;
+
+-- /profile/[userId] "words written" stat: derived straight from chapters
+-- (same numbers totalWordCount() computes client-side for /account), kept
+-- as a generated column so it's always correct — no risk of a stale or
+-- spoofed value ever being trusted, and no need to select/ship the full
+-- `chapters` jsonb (chapter HTML content included) just to add up a
+-- number. Since it lives on the stories row itself, it's already gated by
+-- the exact same RLS as everything else on that row: readable by the
+-- owner always, and by anyone else only when is_public = true. A draft's
+-- word_count is therefore exactly as private as the draft itself.
+alter table public.stories
+  add column if not exists word_count integer generated always as (
+    (select coalesce(sum((chapter->>'wordCount')::int), 0)
+     from jsonb_array_elements(chapters) as chapter)
+  ) stored;
+
+-- "Writer identity" (bio, favorite genre/universe, favorite line) and a
+-- show_writer_identity opt-in flag, so /profile/[userId] can mirror the
+-- /account page's "Writer identity" / "Meaningful moments" sections —
+-- but only for writers who chose to share them.
+alter table public.profiles
+  add column if not exists bio text,
+  add column if not exists favorite_genre text,
+  add column if not exists recurring_universe text,
+  add column if not exists favorite_line text,
+  add column if not exists show_writer_identity boolean not null default false;
+
+-- IMPORTANT: RLS is row-level, not column-level. The existing "profiles
+-- are public-readable" policy makes the whole *row* visible to anyone
+-- once its owner has one public story — it can't be taught to hide just
+-- these four columns while still exposing name/avatar_url. Left alone,
+-- anyone could read bio/favorite_genre/recurring_universe/favorite_line
+-- straight off `profiles` via PostgREST even with show_writer_identity
+-- left off, since Supabase grants blanket SELECT on public schema tables
+-- to anon/authenticated by default. So: revoke that blanket grant and
+-- re-grant only the fields that were always meant to be public. The
+-- four opt-in fields are deliberately left out of this grant — the only
+-- sanctioned way to read them for someone else's profile is the view
+-- below, which enforces the opt-in itself.
+revoke select on public.profiles from anon, authenticated;
+grant select (id, name, avatar_url, created_at, show_writer_identity)
+  on public.profiles to anon, authenticated;
+-- (UPDATE is untouched by the above, and stays governed by the existing
+-- "profiles are self-updatable" RLS policy — an owner can still write
+-- their own bio/favorite_genre/recurring_universe/favorite_line/
+-- show_writer_identity. They never need to SELECT them back off this
+-- table though: the app reads its own copy from auth.users' metadata,
+-- the same place it already reads bio/favoriteGenre/etc. from today —
+-- see AuthContext.tsx.)
+
+-- security_invoker = true (Postgres 15+) makes this view enforce RLS
+-- using the *caller's* privileges against the base table, not the view
+-- owner's — without it, a plain view would silently bypass everything
+-- above. The `where show_writer_identity = true` is the actual opt-in
+-- gate: a row (and therefore these four fields) only ever comes back
+-- through this view for writers who turned the toggle on in Settings.
+create or replace view public.profile_writer_identity
+with (security_invoker = true) as
+select id, bio, favorite_genre, recurring_universe, favorite_line
+from public.profiles
+where show_writer_identity = true;
+
+grant select on public.profile_writer_identity to anon, authenticated;

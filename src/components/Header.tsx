@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 export default function Header() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   return (
     <nav className="relative px-4 sm:px-8 py-5 sm:py-7 border-b border-parchment/10">
@@ -44,24 +45,72 @@ export default function Header() {
             Discover
           </Link>
           {user ? (
-            <Link
-              href="/account"
-              className="flex items-center gap-2 hover:text-parchment transition-colors"
+            // tabIndex + onBlur on the wrapper lets us close the dropdown
+            // when focus leaves it (click-away or tab-out) without a
+            // document-level click listener; relatedTarget tells us
+            // whether focus landed on a child (the menu links) or truly
+            // left the component.
+            <div
+              className="relative"
+              tabIndex={-1}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setAccountMenuOpen(false);
+                }
+              }}
             >
-              <span className="w-9 h-9 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
-                {user.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  user.name.charAt(0).toUpperCase()
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                className="flex items-center gap-2 hover:text-parchment transition-colors"
+              >
+                <span className="w-9 h-9 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {user.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    user.name.charAt(0).toUpperCase()
+                  )}
+                </span>
+                {user.name}
+              </button>
+
+              <AnimatePresence>
+                {accountMenuOpen && (
+                  <motion.div
+                    role="menu"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    className="absolute right-0 top-full mt-2 w-44 bg-panel border border-parchment/10 rounded-xl py-1.5 shadow-lg z-20"
+                  >
+                    <Link
+                      href="/account"
+                      role="menuitem"
+                      onClick={() => setAccountMenuOpen(false)}
+                      className="block px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
+                    >
+                      My account
+                    </Link>
+                    <Link
+                      href={`/profile/${user.id}`}
+                      role="menuitem"
+                      onClick={() => setAccountMenuOpen(false)}
+                      className="block px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
+                    >
+                      Public profile
+                    </Link>
+                  </motion.div>
                 )}
-              </span>
-              {user.name}
-            </Link>
+              </AnimatePresence>
+            </div>
           ) : (
             <Link
               href="/login"
@@ -148,13 +197,22 @@ export default function Header() {
                 Discover
               </Link>
               {user ? (
-                <Link
-                  href="/account"
-                  onClick={() => setOpen(false)}
-                  className="py-2.5 text-muted hover:text-parchment transition-colors"
-                >
-                  {user.name}&apos;s account
-                </Link>
+                <>
+                  <Link
+                    href="/account"
+                    onClick={() => setOpen(false)}
+                    className="py-2.5 text-muted hover:text-parchment transition-colors"
+                  >
+                    {user.name}&apos;s account
+                  </Link>
+                  <Link
+                    href={`/profile/${user.id}`}
+                    onClick={() => setOpen(false)}
+                    className="py-2.5 text-muted hover:text-parchment transition-colors"
+                  >
+                    Public profile
+                  </Link>
+                </>
               ) : (
                 <Link
                   href="/login"

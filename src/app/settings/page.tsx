@@ -96,6 +96,7 @@ export default function SettingsPage() {
   const [favoriteGenre, setFavoriteGenre] = useState("");
   const [recurringUniverse, setRecurringUniverse] = useState("");
   const [favoriteLine, setFavoriteLine] = useState("");
+  const [showWriterIdentity, setShowWriterIdentity] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(300);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +124,7 @@ export default function SettingsPage() {
       setFavoriteGenre(user.favoriteGenre ?? "");
       setRecurringUniverse(user.recurringUniverse ?? "");
       setFavoriteLine(user.favoriteLine ?? "");
+      setShowWriterIdentity(user.showWriterIdentity ?? false);
       setDailyGoal(user.dailyGoal ?? 300);
     }
   }, [user]);
@@ -162,6 +164,7 @@ export default function SettingsPage() {
       favoriteGenre: favoriteGenre.trim(),
       recurringUniverse: recurringUniverse.trim(),
       favoriteLine: favoriteLine.trim(),
+      showWriterIdentity,
     });
     setSaving(false);
 
@@ -423,6 +426,26 @@ export default function SettingsPage() {
                         />
                         <p className="text-[10px] font-mono text-faint mt-1">{favoriteLine.length}/200</p>
                       </div>
+
+                      <label className="flex items-start gap-3 pt-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={showWriterIdentity}
+                          onChange={(e) => setShowWriterIdentity(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-parchment/20 bg-ink-soft accent-lamp"
+                        />
+                        <span>
+                          <span className="block text-sm text-parchment">
+                            Show on my public profile
+                          </span>
+                          <span className="block text-xs text-muted mt-0.5">
+                            When on, your bio, favorite genre, recurring universe, and
+                            favorite line all appear on your public profile — visible to
+                            anyone, including people who aren&apos;t logged in. Off by
+                            default, and off means none of these four show there at all.
+                          </span>
+                        </span>
+                      </label>
                     </div>
                   </div>
 

@@ -54,6 +54,7 @@ type User = {
   favoriteGenre?: string;
   recurringUniverse?: string;
   favoriteLine?: string;
+  showWriterIdentity?: boolean;
 };
 
 type AuthContextType = {
@@ -73,6 +74,7 @@ type AuthContextType = {
     favoriteGenre?: string;
     recurringUniverse?: string;
     favoriteLine?: string;
+    showWriterIdentity?: boolean;
   }) => Promise<{ error?: string }>;
 };
 
@@ -92,6 +94,7 @@ function toUser(session: Session | null): User | null {
     favoriteGenre: (user_metadata?.favorite_genre as string | undefined) ?? "",
     recurringUniverse: (user_metadata?.recurring_universe as string | undefined) ?? "",
     favoriteLine: (user_metadata?.favorite_line as string | undefined) ?? "",
+    showWriterIdentity: (user_metadata?.show_writer_identity as boolean | undefined) ?? false,
   };
 }
 
@@ -179,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     favoriteGenre?: string;
     recurringUniverse?: string;
     favoriteLine?: string;
+    showWriterIdentity?: boolean;
   }) {
     if (!user) return { error: "Not logged in" };
 
@@ -190,10 +194,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         favorite_genre: updates.favoriteGenre ?? "",
         recurring_universe: updates.recurringUniverse ?? "",
         favorite_line: updates.favoriteLine ?? "",
+        show_writer_identity: updates.showWriterIdentity ?? false,
       },
     });
 
-    return { error: error?.message };
+    if (error) return { error: error.message };
+
+    // Mirror the writer-identity fields onto profiles, same reasoning as
+    // avatar_url in updateAvatar below: auth.users' metadata (just
+    // written above) isn't readable by anyone but the user themselves,
+    // but /profile/[userId] needs these fields for other visitors. The
+    // profiles table + profile_writer_identity view (see schema.sql)
+    // only ever surface them when show_writer_identity is true, so it's
+    // safe to always write the raw values here regardless of the
+    // toggle's state. Best-effort: the toggle/fields still work from the
+    // user's own perspective (via auth metadata) even if this fails, so
+    // don't surface it as a blocking error.
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        bio: updates.bio ?? "",
+        favorite_genre: updates.favoriteGenre ?? "",
+        recurring_universe: updates.recurringUniverse ?? "",
+        favorite_line: updates.favoriteLine ?? "",
+        show_writer_identity: updates.showWriterIdentity ?? false,
+      })
+      .eq("id", user.id);
+    if (profileError) {
+      console.error("Failed to sync writer identity to public profile:", profileError.message);
+    }
+
+    return {};
   }
 
   async function updateAvatar(file: File) {

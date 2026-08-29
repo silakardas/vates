@@ -21,6 +21,12 @@ type PublicStoryRow = TagColumns & {
   like_count: number | null;
   created_at: string;
   published_at: string | null;
+  // Generated column (see schema.sql) — always derived server-side from
+  // this same story's chapters, so it's exactly as private as the story
+  // itself: only ever fetched here because the query below already
+  // filters is_public = true. A draft's word count never reaches this
+  // page, published or not.
+  word_count: number | null;
 };
 
 type ProfileRow = {
@@ -28,6 +34,18 @@ type ProfileRow = {
   name: string;
   avatar_url: string | null;
   created_at: string;
+};
+
+// From the profile_writer_identity view (see schema.sql), which only
+// ever returns a row when that writer has show_writer_identity = true —
+// so getting a row back at all IS the opt-in check, enforced at the
+// database level, not just by this page choosing not to render it.
+type WriterIdentityRow = {
+  id: string;
+  bio: string | null;
+  favorite_genre: string | null;
+  recurring_universe: string | null;
+  favorite_line: string | null;
 };
 
 const stagger = {
@@ -49,6 +67,7 @@ export default function PublicProfilePage() {
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [stories, setStories] = useState<PublicStoryRow[]>([]);
+  const [writerIdentity, setWriterIdentity] = useState<WriterIdentityRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -81,10 +100,15 @@ export default function PublicProfilePage() {
         return;
       }
 
+      // owner_id = userId here always means "the profile we're on", not
+      // "the logged-in visitor" — this filter (plus is_public = true) is
+      // unconditional, so even the writer looking at their own public
+      // profile page only ever sees their published stories here.
+      // Drafts belong on /account and /workshop, never on this page.
       const { data: storyRows, error: storiesError } = await supabase
         .from("stories")
         .select(
-          "id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, created_at, published_at"
+          "id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, created_at, published_at, word_count"
         )
         .eq("owner_id", userId)
         .eq("is_public", true)
@@ -97,8 +121,25 @@ export default function PublicProfilePage() {
         console.error("Failed to load author's public stories:", storiesError.message);
       }
 
+      // Separate fetch, not a join: profile_writer_identity is a view
+      // that only returns a row when the writer opted in (see
+      // schema.sql), so a missing row here just means "keep this
+      // section hidden" — not an error.
+      const { data: identityRow, error: identityError } = await supabase
+        .from("profile_writer_identity")
+        .select("id, bio, favorite_genre, recurring_universe, favorite_line")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (identityError) {
+        console.error("Failed to load writer identity:", identityError.message);
+      }
+
       setProfile(profileRow as ProfileRow);
       setStories((storyRows as PublicStoryRow[]) ?? []);
+      setWriterIdentity((identityRow as WriterIdentityRow) ?? null);
       setLoading(false);
     }
 
@@ -142,6 +183,14 @@ export default function PublicProfilePage() {
 
   const totalLikes = stories.reduce((sum, s) => sum + (s.like_count ?? 0), 0);
   const totalViews = stories.reduce((sum, s) => sum + (s.view_count ?? 0), 0);
+  // Published-only by construction: `stories` here only ever holds rows
+  // from the is_public = true query above, so this sum can never include
+  // a draft's word count.
+  const totalWords = stories.reduce((sum, s) => sum + (s.word_count ?? 0), 0);
+
+  const hasWriterIdentity =
+    !!writerIdentity &&
+    (writerIdentity.bio || writerIdentity.favorite_genre || writerIdentity.recurring_universe || writerIdentity.favorite_line);
 
   return (
     <>
@@ -177,6 +226,11 @@ export default function PublicProfilePage() {
             <p className="text-faint text-xs font-mono mt-1">
               Writing here since {formatJoinDate(profile.created_at)}
             </p>
+            {hasWriterIdentity && writerIdentity?.bio && (
+              <p className="text-muted text-sm italic mt-2 max-w-md">
+                &quot;{writerIdentity.bio}&quot;
+              </p>
+            )}
           </div>
         </motion.div>
 
@@ -184,7 +238,7 @@ export default function PublicProfilePage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.08, ease: "easeOut" }}
-          className="grid grid-cols-3 gap-3 sm:gap-4 max-w-md mb-10"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-xl mb-10"
         >
           <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{stories.length}</p>
@@ -198,7 +252,67 @@ export default function PublicProfilePage() {
             <p className="font-mono text-2xl text-lamp">{totalViews.toLocaleString("en-US")}</p>
             <p className="text-xs text-muted mt-1">views</p>
           </div>
+          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+            <p className="font-mono text-2xl text-lamp">{totalWords.toLocaleString("en-US")}</p>
+            <p className="text-xs text-muted mt-1">words written</p>
+          </div>
         </motion.div>
+
+        {hasWriterIdentity && (writerIdentity?.favorite_genre || writerIdentity?.recurring_universe) && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.12, ease: "easeOut" }}
+            className="mb-10"
+          >
+            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+              Writer identity
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+              {writerIdentity?.favorite_genre && (
+                <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
+                  <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
+                    Favorite genre
+                  </p>
+                  <p className="font-serif text-parchment truncate" title={writerIdentity.favorite_genre}>
+                    {writerIdentity.favorite_genre}
+                  </p>
+                </div>
+              )}
+              {writerIdentity?.recurring_universe && (
+                <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
+                  <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
+                    Recurring universe
+                  </p>
+                  <p className="font-serif text-parchment truncate" title={writerIdentity.recurring_universe}>
+                    {writerIdentity.recurring_universe}
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {hasWriterIdentity && writerIdentity?.favorite_line && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.16, ease: "easeOut" }}
+            className="mb-10 max-w-xl"
+          >
+            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+              Meaningful moments
+            </p>
+            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6">
+              <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-2">
+                Favorite line
+              </p>
+              <p className="font-serif text-lg text-parchment italic leading-relaxed">
+                &quot;{writerIdentity.favorite_line}&quot;
+              </p>
+            </div>
+          </motion.div>
+        )}
 
         <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
           Published stories

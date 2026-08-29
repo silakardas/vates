@@ -110,8 +110,8 @@ export default function EditorSidebar(props: {
                 value={story.description ?? ""}
                 onChange={(e) => updateStory(story.id, { description: e.target.value })}
                 placeholder="A line or two, for your own reference..."
-                rows={3}
-                className="w-full bg-ink-soft rounded-lg px-3 py-2 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none placeholder:text-faint leading-relaxed"
+                rows={6}
+                className="w-full bg-ink-soft rounded-lg px-3 py-2 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none placeholder:text-faint leading-relaxed custom-scrollbar"
               />
             </div>
 

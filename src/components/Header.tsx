@@ -40,6 +40,9 @@ export default function Header() {
           <Link href="/challenge" className="hover:text-parchment transition-colors">
             Today&apos;s Challenge
           </Link>
+          <Link href="/discover" className="hover:text-parchment transition-colors">
+            Discover
+          </Link>
           {user ? (
             <Link
               href="/account"
@@ -136,6 +139,13 @@ export default function Header() {
                 className="py-2.5 text-muted hover:text-parchment transition-colors"
               >
                 Today&apos;s Challenge
+              </Link>
+              <Link
+                href="/discover"
+                onClick={() => setOpen(false)}
+                className="py-2.5 text-muted hover:text-parchment transition-colors"
+              >
+                Discover
               </Link>
               {user ? (
                 <Link

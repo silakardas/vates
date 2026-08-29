@@ -20,6 +20,7 @@ export default function EditorSidebar(props: {
   const [versionLabel, setVersionLabel] = useState("");
   const {
     updateStory,
+    togglePublic,
     addChapter,
     addTag,
     removeTag,
@@ -102,6 +103,47 @@ export default function EditorSidebar(props: {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
+                Community
+              </label>
+              <button
+                onClick={() => togglePublic(story.id)}
+                className={`w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 border transition-colors ${
+                  story.isPublic
+                    ? "bg-lamp/15 border-lamp/40"
+                    : "bg-ink-soft border-parchment/10 hover:border-parchment/20"
+                }`}
+              >
+                <span className="text-left">
+                  <span
+                    className={`block text-sm ${
+                      story.isPublic ? "text-lamp" : "text-parchment"
+                    }`}
+                  >
+                    Share to community
+                  </span>
+                  <span className="block text-xs text-faint mt-0.5">
+                    {story.isPublic
+                      ? "Anyone can find and read this story."
+                      : "Only you can see this story."}
+                  </span>
+                </span>
+                <span
+                  className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors ${
+                    story.isPublic ? "bg-lamp" : "bg-parchment/20"
+                  }`}
+                >
+                  <motion.span
+                    layout
+                    transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                    className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-ink"
+                    style={{ x: story.isPublic ? 16 : 0 }}
+                  />
+                </span>
+              </button>
             </div>
 
             <div>

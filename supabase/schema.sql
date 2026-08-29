@@ -124,3 +124,34 @@ create policy "users can update their own avatar"
     bucket_id = 'avatars'
     and auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- Community altyapısı: hikayeleri herkese açık paylaşılabilir hale getirmenin
+-- temeli (is_public/published_at) ve basit etkileşim sayaçları.
+alter table public.stories
+  add column if not exists is_public boolean not null default false,
+  add column if not exists published_at timestamptz,
+  add column if not exists view_count integer not null default 0,
+  add column if not exists like_count integer not null default 0;
+
+-- Mevcut "stories are owner-readable" policy'sine ek olarak: is_public=true
+-- olan hikayeler anon dahil herkes tarafından okunabilsin.
+drop policy if exists "stories are public-readable" on public.stories;
+create policy "stories are public-readable"
+  on public.stories for select
+  using (is_public = true);
+
+  -- /discover sayfası her hikayenin yazar adını gösterebilsin diye:
+-- mevcut "profiles are self-readable" policy'sine ek olarak, en az bir
+-- public hikayesi olan kullanıcıların profili (sadece id/name'i) herkes
+-- tarafından okunabilsin. Public hikayesi olmayan kullanıcıların profili
+-- bu policy'yle açılmıyor.
+drop policy if exists "profiles are public-readable" on public.profiles;
+create policy "profiles are public-readable"
+  on public.profiles for select
+  using (
+    exists (
+      select 1 from public.stories
+      where stories.owner_id = profiles.id
+        and stories.is_public = true
+    )
+  );

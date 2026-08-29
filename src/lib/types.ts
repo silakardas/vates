@@ -70,6 +70,8 @@ export type Story = {
   streak?: number;
   lastWriteDate?: string; // "YYYY-MM-DD", last calendar day the streak was bumped
   updatedAt: number; // timestamp, used to find "last edited"
+  isPublic: boolean;
+  publishedAt?: number;
   characters: Character[];
   events: MapEvent[];
   connections: MapConnection[];

@@ -119,6 +119,7 @@ function newStory(): Story {
     events: [],
     connections: [],
     notes: [],
+    isPublic: false,
   };
 }
 
@@ -139,6 +140,8 @@ type StoryRow = {
   events: MapEvent[] | null;
   connections: MapConnection[] | null;
   updated_at: string;
+  is_public: boolean | null;
+  published_at: string | null;
 };
 
 function rowToStory(row: StoryRow): Story {
@@ -157,6 +160,8 @@ function rowToStory(row: StoryRow): Story {
     events: row.events ?? [],
     connections: row.connections ?? [],
     notes: parseNotes(row.notes),
+    isPublic: row.is_public ?? false,
+    publishedAt: row.published_at ? new Date(row.published_at).getTime() : undefined,
   };
 }
 
@@ -177,6 +182,8 @@ function storyToRow(story: Story, ownerId: string) {
     events: story.events,
     connections: story.connections,
     updated_at: new Date(story.updatedAt).toISOString(),
+    is_public: story.isPublic,
+    published_at: story.publishedAt ? new Date(story.publishedAt).toISOString() : null,
   };
 }
 
@@ -194,6 +201,7 @@ type StoryContextType = {
   getStory: (id: string) => Story | undefined;
   createStory: () => Story;
   updateStory: (id: string, updates: Partial<Story>) => void;
+  togglePublic: (storyId: string) => void;
   addChapter: (storyId: string) => Chapter | undefined;
   updateChapter: (storyId: string, chapterId: string, updates: Partial<Chapter>) => void;
   addTag: (storyId: string, tag: string) => void;
@@ -319,6 +327,23 @@ export function StoryProvider({ children }: { children: ReactNode }) {
       prev.map((s) => {
         if (s.id !== id) return s;
         const next = { ...s, ...updates, updatedAt: Date.now() };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  function togglePublic(storyId: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const nextIsPublic = !s.isPublic;
+        const next = {
+          ...s,
+          isPublic: nextIsPublic,
+          publishedAt: nextIsPublic ? Date.now() : s.publishedAt,
+          updatedAt: Date.now(),
+        };
         persist(next);
         return next;
       })
@@ -727,6 +752,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         getStory,
         createStory,
         updateStory,
+        togglePublic,
         addChapter,
         updateChapter,
         addTag,

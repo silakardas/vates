@@ -18,6 +18,8 @@ type PublicStoryRow = {
   title: string;
   description: string | null;
   tags: string[] | null;
+  view_count: number | null;
+  like_count: number | null;
   created_at: string;
   published_at: string | null;
 };
@@ -59,7 +61,9 @@ export default function DiscoverPage() {
       // "stories are public-readable" RLS policy (is_public = true).
       const { data: storyRows, error: storiesError } = await supabase
         .from("stories")
-        .select("id, owner_id, title, description, tags, created_at, published_at")
+        .select(
+          "id, owner_id, title, description, tags, view_count, like_count, created_at, published_at"
+        )
         .eq("is_public", true)
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
@@ -223,12 +227,18 @@ export default function DiscoverPage() {
               return (
                 <motion.div key={story.id} variants={cardFade}>
                   <Link
-                    href={`/story/${story.id}`}
+                    href={`/discover/${story.id}`}
                     className="group flex flex-col h-full bg-ink-soft border border-parchment/10 rounded-xl p-5 hover:border-lamp/30 transition-colors"
                   >
-                    <h3 className="font-serif text-lg group-hover:text-lamp transition-colors mb-1.5">
-                      {story.title}
-                    </h3>
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <h3 className="font-serif text-lg group-hover:text-lamp transition-colors">
+                        {story.title}
+                      </h3>
+                      <span className="text-xs font-mono text-faint flex items-center gap-2 flex-shrink-0 pt-1 whitespace-nowrap">
+                        <span>👁 {(story.view_count ?? 0).toLocaleString("en-US")}</span>
+                        <span>♥ {(story.like_count ?? 0).toLocaleString("en-US")}</span>
+                      </span>
+                    </div>
                     {author && (
                       <p className="text-xs font-mono text-faint mb-2">by {author}</p>
                     )}

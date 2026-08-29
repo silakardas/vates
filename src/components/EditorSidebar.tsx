@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Story, StoryType } from "@/lib/types";
+import { Story, StoryType, TagCategory } from "@/lib/types";
 import { StoryStatus, STATUS_CONFIG } from "@/lib/storyStatus";
 import { useStories } from "@/lib/StoryContext";
 import { relativeTime } from "@/lib/timeAgo";
+import { TAG_CATEGORIES } from "@/lib/tags";
 
 const TABS = ["Details", "Characters", "Notes", "Chapters", "History"] as const;
 type Tab = (typeof TABS)[number];
@@ -16,7 +17,12 @@ export default function EditorSidebar(props: {
   onSelectChapter: (id: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>("Details");
-  const [tagInput, setTagInput] = useState("");
+  const [tagInputs, setTagInputs] = useState<Record<TagCategory, string>>({
+    fandoms: "",
+    relationships: "",
+    characters: "",
+    additionalTags: "",
+  });
   const [versionLabel, setVersionLabel] = useState("");
   const {
     updateStory,
@@ -37,10 +43,10 @@ export default function EditorSidebar(props: {
   const activeChapter =
     story.chapters.find((c) => c.id === props.activeChapterId) ?? story.chapters[0];
 
-  function handleAddTag(e: React.FormEvent) {
+  function handleAddTag(e: React.FormEvent, category: TagCategory) {
     e.preventDefault();
-    addTag(story.id, tagInput);
-    setTagInput("");
+    addTag(story.id, category, tagInputs[category]);
+    setTagInputs((prev) => ({ ...prev, [category]: "" }));
   }
 
   function handleAddChapter() {
@@ -180,47 +186,54 @@ export default function EditorSidebar(props: {
               </div>
             </div>
 
-            <div>
-              <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
-                Tags
-              </label>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {story.tags.length === 0 && (
-                  <p className="text-xs text-faint">No tags yet.</p>
-                )}
-                {story.tags.map((tag) => (
-                  <motion.span
-                    key={tag}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex items-center gap-1.5 text-xs bg-ink-soft border border-parchment/10 px-2.5 py-1 rounded-full"
-                  >
-                    #{tag}
+            {TAG_CATEGORIES.map(({ key, label, placeholder }) => {
+              const values = story.tags[key];
+              return (
+                <div key={key}>
+                  <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
+                    {label}
+                  </label>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {values.length === 0 && (
+                      <p className="text-xs text-faint">No {label.toLowerCase()} tags yet.</p>
+                    )}
+                    {values.map((tag) => (
+                      <motion.span
+                        key={tag}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="flex items-center gap-1.5 text-xs bg-ink-soft border border-parchment/10 px-2.5 py-1 rounded-full"
+                      >
+                        #{tag}
+                        <button
+                          onClick={() => removeTag(story.id, key, tag)}
+                          className="text-faint hover:text-crimson transition-colors"
+                          aria-label={`Remove ${label.toLowerCase()} tag ${tag}`}
+                        >
+                          ✕
+                        </button>
+                      </motion.span>
+                    ))}
+                  </div>
+                  <form onSubmit={(e) => handleAddTag(e, key)} className="flex gap-2">
+                    <input
+                      value={tagInputs[key]}
+                      onChange={(e) =>
+                        setTagInputs((prev) => ({ ...prev, [key]: e.target.value }))
+                      }
+                      placeholder={placeholder}
+                      className="flex-1 min-w-0 bg-ink-soft rounded-lg px-3 py-1.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+                    />
                     <button
-                      onClick={() => removeTag(story.id, tag)}
-                      className="text-faint hover:text-crimson transition-colors"
-                      aria-label={`Remove tag ${tag}`}
+                      type="submit"
+                      className="text-xs font-mono text-lamp px-2 hover:underline"
                     >
-                      ✕
+                      Add
                     </button>
-                  </motion.span>
-                ))}
-              </div>
-              <form onSubmit={handleAddTag} className="flex gap-2">
-                <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  placeholder="Add a tag..."
-                  className="flex-1 min-w-0 bg-ink-soft rounded-lg px-3 py-1.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
-                />
-                <button
-                  type="submit"
-                  className="text-xs font-mono text-lamp px-2 hover:underline"
-                >
-                  Add
-                </button>
-              </form>
-            </div>
+                  </form>
+                </div>
+              );
+            })}
           </div>
         )}
 

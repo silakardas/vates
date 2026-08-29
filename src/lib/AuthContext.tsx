@@ -240,6 +240,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (updateError) return { error: updateError.message };
+
+    // Also mirror it onto profiles, which — unlike auth.users'
+    // metadata — is readable on the public /profile/[userId] page (for
+    // users with at least one public story). Best-effort: if this
+    // fails, the user's own avatar (from auth metadata) still works
+    // everywhere else in the app, so don't surface it as an error.
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ avatar_url: url })
+      .eq("id", user.id);
+    if (profileError) {
+      console.error("Failed to sync avatar to public profile:", profileError.message);
+    }
+
     return { url };
   }
 

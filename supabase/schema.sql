@@ -312,3 +312,13 @@ drop trigger if exists on_story_like_change on public.story_likes;
 create trigger on_story_like_change
   after insert or delete on public.story_likes
   for each row execute function public.handle_story_like_change();
+
+-- Herkese açık profil sayfası (/profile/[userId]) bir avatar göstermek
+-- istiyor, ama bugün avatar_url auth.users.raw_user_meta_data içinde
+-- tutuluyor (bkz. AuthContext.updateAvatar) ve o alan PostgREST üzerinden
+-- dışarıya açık değil. profiles tablosuna aynı URL'yi de yazarak, zaten
+-- var olan "profiles are public-readable" policy'si (en az bir public
+-- hikayesi olan kullanıcılar için) üzerinden herkese açık okunabilir hale
+-- getiriyoruz.
+alter table public.profiles
+  add column if not exists avatar_url text;

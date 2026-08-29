@@ -11,8 +11,11 @@ import WordLookupDemo from "@/components/WordLookupDemo";
 import EditorTypingDemo from "@/components/EditorTypingDemo";
 import StreakDemo from "@/components/StreakDemo";
 import StatsCounterDemo from "@/components/StatsCounterDemo";
+import PublicStoryCard from "@/components/PublicStoryCard";
+import Link from "next/link";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
+import { createClient } from "@/lib/supabase/client";
 import { randomLine, timeGreeting } from "@/lib/greeting";
 import { getTodaysPrompt } from "@/lib/challenges";
 import { totalWordCount } from "@/lib/types";
@@ -23,12 +26,28 @@ function excerptFrom(html: string) {
   return text.length > 0 ? text.slice(0, 120) : "An empty page, waiting.";
 }
 
+// Row shape for a public story on the homepage's "Community spotlight" —
+// same fields /discover reads, this section just shows the most-liked
+// handful instead of a full browsable list.
+type SpotlightStoryRow = {
+  id: string;
+  owner_id: string;
+  title: string;
+  description: string | null;
+  tags: string[] | null;
+  view_count: number | null;
+  like_count: number | null;
+};
+
 export default function Home() {
   const router = useRouter();
   const { createStory, stories } = useStories();
   const { user } = useAuth();
   const [intro, setIntro] = useState<{ line: string; greeting: string } | null>(null);
   const [todaysPrompt, setTodaysPrompt] = useState<string | null>(null);
+  const [spotlight, setSpotlight] = useState<SpotlightStoryRow[]>([]);
+  const [spotlightAuthors, setSpotlightAuthors] = useState<Record<string, string>>({});
+  const [spotlightLoading, setSpotlightLoading] = useState(true);
 
   const glimpses = [...stories]
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -44,6 +63,61 @@ export default function Home() {
     // rotates automatically based on the visitor's current date.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTodaysPrompt(getTodaysPrompt());
+  }, []);
+
+  // Community spotlight: a handful of the most-liked public stories.
+  // Runs for every visitor, signed in or not — relies on the same
+  // "stories are public-readable" RLS policy /discover uses, so no
+  // owner filter and no auth required.
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+
+    async function load() {
+      setSpotlightLoading(true);
+
+      const { data: storyRows, error: storiesError } = await supabase
+        .from("stories")
+        .select("id, owner_id, title, description, tags, view_count, like_count")
+        .eq("is_public", true)
+        .order("like_count", { ascending: false })
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .limit(3);
+
+      if (cancelled) return;
+
+      if (storiesError || !storyRows) {
+        console.error("Failed to load community spotlight:", storiesError?.message);
+        setSpotlight([]);
+        setSpotlightAuthors({});
+        setSpotlightLoading(false);
+        return;
+      }
+
+      const ownerIds = [...new Set(storyRows.map((s) => s.owner_id))];
+      let authorMap: Record<string, string> = {};
+
+      if (ownerIds.length > 0) {
+        const { data: profileRows } = await supabase
+          .from("profiles")
+          .select("id, name")
+          .in("id", ownerIds);
+        authorMap = Object.fromEntries(
+          (profileRows ?? []).map((p) => [p.id as string, p.name as string])
+        );
+      }
+
+      if (!cancelled) {
+        setSpotlight(storyRows as SpotlightStoryRow[]);
+        setSpotlightAuthors(authorMap);
+        setSpotlightLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleEnter() {
@@ -345,6 +419,55 @@ export default function Home() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {!spotlightLoading && spotlight.length > 0 && (
+        <section className="relative px-5 sm:px-8 pb-24 pt-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4 mb-10">
+              <span className="h-px flex-1 bg-parchment/10" />
+              <p className="font-mono text-[11px] uppercase tracking-widest text-faint whitespace-nowrap">
+                Community spotlight
+              </p>
+              <span className="h-px flex-1 bg-parchment/10" />
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-3">
+              {spotlight.map((story, i) => (
+                <motion.div
+                  key={story.id}
+                  initial={{ opacity: 0, y: 14 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.5, delay: i * 0.08, ease: "easeOut" }}
+                  className="h-full"
+                >
+                  <PublicStoryCard
+                    story={{
+                      id: story.id,
+                      title: story.title,
+                      description: story.description,
+                      tags: story.tags,
+                      viewCount: story.view_count,
+                      likeCount: story.like_count,
+                    }}
+                    authorName={spotlightAuthors[story.owner_id]}
+                    authorId={story.owner_id}
+                  />
+                </motion.div>
+              ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Link
+                href="/discover"
+                className="text-lamp font-mono text-sm hover:underline"
+              >
+                Explore all →
+              </Link>
             </div>
           </div>
         </section>

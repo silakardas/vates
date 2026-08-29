@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage } from "./types";
+import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry } from "./types";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { moodboardExtensionFor, MAX_MOODBOARD_BYTES } from "@/lib/moodboardImage";
@@ -53,6 +53,48 @@ function newCharacter(): Character {
   };
 }
 
+function newNote(): NoteEntry {
+  return {
+    id: crypto.randomUUID(),
+    title: "New note",
+    content: "",
+    updatedAt: Date.now(),
+  };
+}
+
+// The `notes` DB column stores either legacy plain text (a single freeform
+// scratchpad) or, going forward, a JSON-encoded NoteEntry[]. Normalize both
+// into NoteEntry[] so the rest of the app only deals with one shape.
+function parseNotes(raw: string | null | undefined): NoteEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((n) => n && typeof n === "object" && typeof n.id === "string")
+        .map((n) => ({
+          id: n.id,
+          title: typeof n.title === "string" ? n.title : "Untitled note",
+          content: typeof n.content === "string" ? n.content : "",
+          updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : Date.now(),
+        }));
+    }
+  } catch {
+    // Not JSON — fall through to legacy plain-text handling below.
+  }
+  // Legacy scratchpad: a single plain-text string. Wrap it as one note so
+  // existing notes aren't lost when a story is opened for the first time
+  // after this change.
+  return [
+    {
+      id: crypto.randomUUID(),
+      title: "Notes",
+      content: raw,
+      updatedAt: Date.now(),
+    },
+  ];
+}
+
 function newEvent(): MapEvent {
   return {
     id: crypto.randomUUID(),
@@ -76,7 +118,7 @@ function newStory(): Story {
     characters: [],
     events: [],
     connections: [],
-    notes: "",
+    notes: [],
   };
 }
 
@@ -114,7 +156,7 @@ function rowToStory(row: StoryRow): Story {
     characters: row.characters ?? [],
     events: row.events ?? [],
     connections: row.connections ?? [],
-    notes: row.notes ?? "",
+    notes: parseNotes(row.notes),
   };
 }
 
@@ -129,7 +171,7 @@ function storyToRow(story: Story, ownerId: string) {
     status: story.status,
     streak: story.streak ?? null,
     last_write_date: story.lastWriteDate ?? null,
-    notes: story.notes,
+    notes: JSON.stringify(story.notes),
     chapters: story.chapters,
     characters: story.characters,
     events: story.events,
@@ -169,7 +211,9 @@ type StoryContextType = {
     file: File
   ) => Promise<{ error?: string }>;
   removeMoodboardImage: (storyId: string, characterId: string, imageId: string) => void;
-  updateNotes: (storyId: string, notes: string) => void;
+  addNote: (storyId: string) => NoteEntry | undefined;
+  updateNote: (storyId: string, noteId: string, updates: Partial<NoteEntry>) => void;
+  removeNote: (storyId: string, noteId: string) => void;
   saveVersion: (storyId: string, chapterId: string, label?: string) => void;
   restoreVersion: (storyId: string, chapterId: string, versionId: string) => void;
 };
@@ -631,11 +675,42 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function updateNotes(storyId: string, notes: string) {
+  function addNote(storyId: string): NoteEntry | undefined {
+    let created: NoteEntry | undefined;
     setStories((prev) =>
       prev.map((s) => {
         if (s.id !== storyId) return s;
-        const next = { ...s, notes, updatedAt: Date.now() };
+        created = newNote();
+        const next = { ...s, notes: [...s.notes, created], updatedAt: Date.now() };
+        persist(next);
+        return next;
+      })
+    );
+    return created;
+  }
+
+  function updateNote(storyId: string, noteId: string, updates: Partial<NoteEntry>) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = {
+          ...s,
+          updatedAt: Date.now(),
+          notes: s.notes.map((n) =>
+            n.id === noteId ? { ...n, ...updates, updatedAt: Date.now() } : n
+          ),
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  function removeNote(storyId: string, noteId: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = { ...s, notes: s.notes.filter((n) => n.id !== noteId), updatedAt: Date.now() };
         persist(next);
         return next;
       })
@@ -665,7 +740,9 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         toggleConnection,
         uploadMoodboardImage,
         removeMoodboardImage,
-        updateNotes,
+        addNote,
+        updateNote,
+        removeNote,
         saveVersion,
         restoreVersion,
       }}

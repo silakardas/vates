@@ -26,7 +26,9 @@ export default function EditorSidebar(props: {
     addCharacter,
     updateCharacter,
     removeCharacter,
-    updateNotes,
+    addNote,
+    updateNote,
+    removeNote,
     saveVersion,
     restoreVersion,
   } = useStories();
@@ -61,7 +63,7 @@ export default function EditorSidebar(props: {
   }
 
   return (
-    <aside className="w-full max-h-[60vh] border-t lg:max-h-none lg:w-80 lg:flex-shrink-0 lg:border-t-0 lg:border-l border-parchment/10 flex flex-col">
+    <aside className="w-full max-h-[60vh] border-t lg:max-h-none lg:min-h-0 lg:w-80 lg:flex-shrink-0 lg:border-t-0 lg:border-l border-parchment/10 flex flex-col">
       <div className="grid grid-cols-2 gap-1 p-2 border-b border-parchment/10">
         {TABS.map((t, i) => (
           <button
@@ -242,16 +244,51 @@ export default function EditorSidebar(props: {
         )}
 
         {tab === "Notes" && (
-          <div className="flex flex-col h-full">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
-              Scratchpad
-            </p>
-            <textarea
-              value={story.notes}
-              onChange={(e) => updateNotes(story.id, e.target.value)}
-              placeholder="Worldbuilding, plot threads, things to remember..."
-              className="w-full flex-1 min-h-[50vh] bg-ink-soft rounded-lg px-3 py-2.5 text-sm leading-relaxed outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint resize-none"
-            />
+          <div className="space-y-3">
+            {story.notes.length === 0 && (
+              <p className="text-xs text-faint leading-relaxed mb-1">
+                No notes yet. Jot down worldbuilding, plot threads, things to remember...
+              </p>
+            )}
+            {story.notes.map((n) => (
+              <motion.div
+                key={n.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-ink-soft border border-parchment/10 rounded-lg p-3.5 space-y-2"
+              >
+                <div className="flex items-start gap-2">
+                  <input
+                    value={n.title}
+                    onChange={(e) => updateNote(story.id, n.id, { title: e.target.value })}
+                    placeholder="Note title"
+                    className="flex-1 min-w-0 bg-transparent font-serif text-sm outline-none border-b border-transparent focus:border-lamp/40 transition-colors"
+                  />
+                  <button
+                    onClick={() => removeNote(story.id, n.id)}
+                    className="text-faint hover:text-crimson transition-colors text-xs mt-0.5"
+                    aria-label={`Remove note ${n.title}`}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <textarea
+                  value={n.content}
+                  onChange={(e) => updateNote(story.id, n.id, { content: e.target.value })}
+                  placeholder="Worldbuilding, plot threads, things to remember..."
+                  rows={4}
+                  className="w-full bg-ink rounded-md px-2.5 py-2 text-xs leading-relaxed outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint resize-none custom-scrollbar"
+                />
+              </motion.div>
+            ))}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => addNote(story.id)}
+              className="w-full text-xs font-mono text-lamp border border-dashed border-lamp/30 rounded-lg py-2.5 hover:bg-lamp/5 transition-colors"
+            >
+              + Add note
+            </motion.button>
           </div>
         )}
 

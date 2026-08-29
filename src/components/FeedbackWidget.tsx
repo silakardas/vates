@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 
@@ -11,6 +12,7 @@ type FeedbackType = (typeof TYPES)[number];
 
 export default function FeedbackWidget() {
   const { user } = useAuth();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<FeedbackType>("Bug");
   const [message, setMessage] = useState("");
@@ -35,6 +37,11 @@ export default function FeedbackWidget() {
       setMessage("");
     }
   }
+
+  // Stay out of the way on the editor page — the writing area needs the
+  // full screen, and this button just gets in the way there.
+  const isEditorPage = pathname?.startsWith("/story/");
+  if (isEditorPage) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">

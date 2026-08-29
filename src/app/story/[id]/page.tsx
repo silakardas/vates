@@ -71,8 +71,11 @@ export default function StoryPage() {
   return (
     <>
       <Header />
-      <div className="flex flex-col lg:flex-row" style={{ minHeight: "calc(100vh - 89px)" }}>
-        <main className="flex-1 min-w-0 text-parchment px-4 py-6 sm:px-8 sm:py-10 flex flex-col">
+      <div
+        className="flex flex-col lg:flex-row lg:h-[calc(100vh-89px)] lg:overflow-hidden"
+        style={{ minHeight: "calc(100vh - 89px)" }}
+      >
+        <main className="flex-1 min-w-0 lg:min-h-0 lg:overflow-hidden text-parchment px-4 py-6 sm:px-8 sm:py-10 flex flex-col">
           <div className="flex items-center justify-between mb-4 sm:mb-6 gap-3">
             <button
               onClick={() => router.push("/workshop")}
@@ -121,7 +124,7 @@ export default function StoryPage() {
             />
           )}
 
-          <div className="flex-1">
+          <div className="flex-1 lg:min-h-0">
             <Editor
               content={currentChapter?.content ?? "<p></p>"}
               onChange={(html, wordCount) =>

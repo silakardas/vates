@@ -52,6 +52,13 @@ export type MapConnection = {
   toId: string;
 };
 
+export type NoteEntry = {
+  id: string;
+  title: string;
+  content: string;
+  updatedAt: number;
+};
+
 export type Story = {
   id: string;
   title: string;
@@ -66,7 +73,7 @@ export type Story = {
   characters: Character[];
   events: MapEvent[];
   connections: MapConnection[];
-  notes: string; // freeform HTML/plain text scratchpad for the story
+  notes: NoteEntry[]; // titled scratchpad notes for the story
 };
 
 export function totalWordCount(story: Story): number {

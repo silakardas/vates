@@ -1,10 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry } from "./types";
+import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry, TagCategory } from "./types";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { moodboardExtensionFor, MAX_MOODBOARD_BYTES } from "@/lib/moodboardImage";
+import { emptyStoryTags, tagColumnsToStoryTags, TagColumns } from "@/lib/tags";
 
 // Local (not UTC) calendar date, so a streak doesn't break at midnight UTC
 // for users in other timezones.
@@ -109,7 +110,7 @@ function newStory(): Story {
     title: "Untitled story",
     description: "",
     type: "oneshot",
-    tags: [],
+    tags: emptyStoryTags(),
     status: "inProgress",
     updatedAt: Date.now(),
     streak: 0,
@@ -124,13 +125,15 @@ function newStory(): Story {
 }
 
 // Row shape in the `stories` table <-> the app's Story type.
-type StoryRow = {
+// `tags` is the old pre-migration single-array column, kept only so
+// rowToStory can fold it into `additionalTags` for stories that haven't
+// been re-saved since the category split (see tagColumnsToStoryTags).
+type StoryRow = TagColumns & {
   id: string;
   owner_id: string;
   title: string;
   description: string | null;
   type: Story["type"];
-  tags: string[];
   status: Story["status"];
   streak: number | null;
   last_write_date: string | null;
@@ -150,7 +153,7 @@ function rowToStory(row: StoryRow): Story {
     title: row.title,
     description: row.description ?? undefined,
     type: row.type,
-    tags: row.tags ?? [],
+    tags: tagColumnsToStoryTags(row),
     status: row.status,
     streak: row.streak ?? undefined,
     lastWriteDate: row.last_write_date ?? undefined,
@@ -172,7 +175,10 @@ function storyToRow(story: Story, ownerId: string) {
     title: story.title,
     description: story.description ?? null,
     type: story.type,
-    tags: story.tags,
+    fandoms: story.tags.fandoms,
+    relationships: story.tags.relationships,
+    tag_characters: story.tags.characters,
+    additional_tags: story.tags.additionalTags,
     status: story.status,
     streak: story.streak ?? null,
     last_write_date: story.lastWriteDate ?? null,
@@ -184,6 +190,10 @@ function storyToRow(story: Story, ownerId: string) {
     updated_at: new Date(story.updatedAt).toISOString(),
     is_public: story.isPublic,
     published_at: story.publishedAt ? new Date(story.publishedAt).toISOString() : null,
+    // Intentionally not writing `tags` (the legacy column) — it's left as
+    // whatever it was, and rowToStory merges it into additionalTags on
+    // every load, so nothing is lost even though this write path no
+    // longer touches it.
   };
 }
 
@@ -204,8 +214,8 @@ type StoryContextType = {
   togglePublic: (storyId: string) => void;
   addChapter: (storyId: string) => Chapter | undefined;
   updateChapter: (storyId: string, chapterId: string, updates: Partial<Chapter>) => void;
-  addTag: (storyId: string, tag: string) => void;
-  removeTag: (storyId: string, tag: string) => void;
+  addTag: (storyId: string, category: TagCategory, value: string) => void;
+  removeTag: (storyId: string, category: TagCategory, value: string) => void;
   addCharacter: (storyId: string) => Character | undefined;
   updateCharacter: (storyId: string, characterId: string, updates: Partial<Character>) => void;
   removeCharacter: (storyId: string, characterId: string) => void;
@@ -496,24 +506,30 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function addTag(storyId: string, tag: string) {
-    const clean = tag.trim().toLowerCase();
+  function addTag(storyId: string, category: TagCategory, value: string) {
+    const clean = value.trim().toLowerCase();
     if (!clean) return;
     setStories((prev) =>
       prev.map((s) => {
-        if (s.id !== storyId || s.tags.includes(clean)) return s;
-        const next = { ...s, tags: [...s.tags, clean] };
+        if (s.id !== storyId || s.tags[category].includes(clean)) return s;
+        const next = {
+          ...s,
+          tags: { ...s.tags, [category]: [...s.tags[category], clean] },
+        };
         persist(next);
         return next;
       })
     );
   }
 
-  function removeTag(storyId: string, tag: string) {
+  function removeTag(storyId: string, category: TagCategory, value: string) {
     setStories((prev) =>
       prev.map((s) => {
         if (s.id !== storyId) return s;
-        const next = { ...s, tags: s.tags.filter((t) => t !== tag) };
+        const next = {
+          ...s,
+          tags: { ...s.tags, [category]: s.tags[category].filter((t) => t !== value) },
+        };
         persist(next);
         return next;
       })

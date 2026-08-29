@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Story, totalWordCount } from "@/lib/types";
 import { buildActivity } from "@/lib/activity";
+import { flattenStoryTags } from "@/lib/tags";
 import ActivityStrip from "./ActivityStrip";
 
 export default function WorkshopStats(props: {
@@ -19,7 +20,7 @@ export default function WorkshopStats(props: {
 
   const tagCounts = new Map<string, number>();
   stories.forEach((s) =>
-    s.tags.forEach((t) => tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1))
+    flattenStoryTags(s.tags).forEach((t) => tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1))
   );
   const topTags = [...tagCounts.entries()]
     .sort((a, b) => b[1] - a[1])

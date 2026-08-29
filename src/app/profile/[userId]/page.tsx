@@ -8,15 +8,15 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PublicStoryCard from "@/components/PublicStoryCard";
 import { createClient } from "@/lib/supabase/client";
+import { TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
 
 // Row shape for a publicly-shared story, scoped to one author — same
 // fields /discover reads, minus owner_id (we already know it: it's the
 // profile we're on).
-type PublicStoryRow = {
+type PublicStoryRow = TagColumns & {
   id: string;
   title: string;
   description: string | null;
-  tags: string[] | null;
   view_count: number | null;
   like_count: number | null;
   created_at: string;
@@ -83,7 +83,9 @@ export default function PublicProfilePage() {
 
       const { data: storyRows, error: storiesError } = await supabase
         .from("stories")
-        .select("id, title, description, tags, view_count, like_count, created_at, published_at")
+        .select(
+          "id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, created_at, published_at"
+        )
         .eq("owner_id", userId)
         .eq("is_public", true)
         .order("published_at", { ascending: false, nullsFirst: false })
@@ -222,7 +224,7 @@ export default function PublicProfilePage() {
                     id: story.id,
                     title: story.title,
                     description: story.description,
-                    tags: story.tags,
+                    tags: tagColumnsToStoryTags(story),
                     viewCount: story.view_count,
                     likeCount: story.like_count,
                   }}

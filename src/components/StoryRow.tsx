@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { STATUS_CONFIG, StoryStatus } from "@/lib/storyStatus";
 import { relativeTime } from "@/lib/timeAgo";
-import { StoryType } from "@/lib/types";
+import { StoryType, StoryTags } from "@/lib/types";
 
 export default function StoryRow(props: {
   id: string;
@@ -14,7 +14,7 @@ export default function StoryRow(props: {
   chapterCount: number;
   wordCount: number;
   streak?: number;
-  tags: string[];
+  tags: StoryTags;
   status: StoryStatus;
   updatedAt: number;
 }) {
@@ -56,8 +56,17 @@ export default function StoryRow(props: {
                 {props.description}
               </p>
             )}
-            <div className="flex gap-3 flex-wrap mt-2">
-              {props.tags.map((tag) => (
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              {props.tags.fandoms.length > 0 && (
+                <span className="text-xs font-mono uppercase tracking-wide text-lamp">
+                  {props.tags.fandoms.join(" · ")}
+                </span>
+              )}
+              {[
+                ...props.tags.relationships,
+                ...props.tags.characters,
+                ...props.tags.additionalTags,
+              ].map((tag) => (
                 <span key={tag} className="text-xs font-mono text-muted">
                   #{tag}
                 </span>

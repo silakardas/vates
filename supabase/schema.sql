@@ -322,3 +322,18 @@ create trigger on_story_like_change
 -- getiriyoruz.
 alter table public.profiles
   add column if not exists avatar_url text;
+
+-- AO3-style tag categories: kept as the same simple jsonb-array pattern the
+-- old single `tags` column used, just split four ways instead of one — no
+-- separate tags table, this app is small enough that it doesn't need one.
+-- `tag_characters` (not `characters`) to avoid colliding with the existing
+-- `characters` column, which stores story-map character sheets, not tags.
+-- The old `tags` column is left in place (not dropped, not written to
+-- anymore) purely so the app can migrate any pre-existing values into
+-- `additional_tags` the first time each story is opened/saved after this
+-- change, without losing data.
+alter table public.stories
+  add column if not exists fandoms jsonb not null default '[]'::jsonb,
+  add column if not exists relationships jsonb not null default '[]'::jsonb,
+  add column if not exists tag_characters jsonb not null default '[]'::jsonb,
+  add column if not exists additional_tags jsonb not null default '[]'::jsonb;

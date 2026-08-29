@@ -10,6 +10,7 @@ import { useStories } from "@/lib/StoryContext";
 import { Story, totalWordCount } from "@/lib/types";
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
 import { STATUS_CONFIG } from "@/lib/storyStatus";
+import { TAG_CATEGORIES } from "@/lib/tags";
 
 // Turns editor HTML into clean, readable plain text for the .txt export.
 function stripHtml(html: string): string {
@@ -50,7 +51,10 @@ function buildReadableExport(userName: string, stories: Story[]): string {
           : "One-shot"
       } · ${totalWordCount(story).toLocaleString("en-US")} words · ${STATUS_CONFIG[story.status].label}`
     );
-    if (story.tags.length) lines.push(`Tags: ${story.tags.map((t) => `#${t}`).join(" ")}`);
+    TAG_CATEGORIES.forEach(({ key, label }) => {
+      const values = story.tags[key];
+      if (values.length) lines.push(`${label}: ${values.map((t) => `#${t}`).join(" ")}`);
+    });
     if (story.description) {
       lines.push("");
       lines.push(story.description);

@@ -59,13 +59,24 @@ export type NoteEntry = {
   updatedAt: number;
 };
 
+// AO3-style tag categories, kept simple: no separate tags table, just the
+// existing jsonb-array pattern split four ways instead of one.
+export type TagCategory = "fandoms" | "relationships" | "characters" | "additionalTags";
+
+export type StoryTags = {
+  fandoms: string[];
+  relationships: string[];
+  characters: string[];
+  additionalTags: string[];
+};
+
 export type Story = {
   id: string;
   title: string;
   description?: string;
   type: StoryType;
   chapters: Chapter[];
-  tags: string[];
+  tags: StoryTags;
   status: StoryStatus;
   streak?: number;
   lastWriteDate?: string; // "YYYY-MM-DD", last calendar day the streak was bumped

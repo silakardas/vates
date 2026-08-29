@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { StoryTags } from "@/lib/types";
 
 // Presentational card for a single publicly-shared story. Pulled out of
 // /discover so /profile/[userId] and the homepage's "Community spotlight"
@@ -9,7 +10,7 @@ export type PublicStoryCardData = {
   id: string;
   title: string;
   description?: string | null;
-  tags?: string[] | null;
+  tags?: StoryTags | null;
   viewCount?: number | null;
   likeCount?: number | null;
 };
@@ -26,7 +27,14 @@ export default function PublicStoryCard({
   authorId?: string;
 }) {
   const description = story.description?.trim() || null;
-  const tags = story.tags ?? [];
+  const fandoms = story.tags?.fandoms ?? [];
+  // Fandom gets its own featured line (AO3-style), so everything else is
+  // shown together as plain chips underneath.
+  const otherTags = [
+    ...(story.tags?.relationships ?? []),
+    ...(story.tags?.characters ?? []),
+    ...(story.tags?.additionalTags ?? []),
+  ];
 
   return (
     // The whole card is clickable (goes to the story), but the author
@@ -62,14 +70,19 @@ export default function PublicStoryCard({
           )}
         </p>
       )}
+      {fandoms.length > 0 && (
+        <p className="text-[11px] font-mono uppercase tracking-wide text-lamp mb-2 pointer-events-none truncate">
+          {fandoms.join(" · ")}
+        </p>
+      )}
       {description && (
         <p className="text-sm text-muted leading-relaxed line-clamp-3 mb-3 pointer-events-none">
           {description}
         </p>
       )}
-      {tags.length > 0 && (
+      {otherTags.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-auto pt-2 pointer-events-none">
-          {tags.map((tag) => (
+          {otherTags.map((tag) => (
             <span key={tag} className="text-xs font-mono text-muted">
               #{tag}
             </span>

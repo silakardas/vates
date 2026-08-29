@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { randomLine, timeGreeting } from "@/lib/greeting";
 import { getTodaysPrompt } from "@/lib/challenges";
+import { TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
 import { totalWordCount } from "@/lib/types";
 import Footer from "@/components/Footer";
 
@@ -29,12 +30,11 @@ function excerptFrom(html: string) {
 // Row shape for a public story on the homepage's "Community spotlight" —
 // same fields /discover reads, this section just shows the most-liked
 // handful instead of a full browsable list.
-type SpotlightStoryRow = {
+type SpotlightStoryRow = TagColumns & {
   id: string;
   owner_id: string;
   title: string;
   description: string | null;
-  tags: string[] | null;
   view_count: number | null;
   like_count: number | null;
 };
@@ -78,7 +78,9 @@ export default function Home() {
 
       const { data: storyRows, error: storiesError } = await supabase
         .from("stories")
-        .select("id, owner_id, title, description, tags, view_count, like_count")
+        .select(
+          "id, owner_id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count"
+        )
         .eq("is_public", true)
         .order("like_count", { ascending: false })
         .order("published_at", { ascending: false, nullsFirst: false })
@@ -450,7 +452,7 @@ export default function Home() {
                       id: story.id,
                       title: story.title,
                       description: story.description,
-                      tags: story.tags,
+                      tags: tagColumnsToStoryTags(story),
                       viewCount: story.view_count,
                       likeCount: story.like_count,
                     }}

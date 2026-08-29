@@ -10,18 +10,18 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/AuthContext";
 import { relativeTime } from "@/lib/timeAgo";
 import type { Chapter } from "@/lib/types";
+import { TAG_CATEGORIES, TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
 
 // Row shape for this page's read — a public/owner-visible story, fetched
 // straight from Supabase. Intentionally not the full `Story` type from
 // StoryContext: that context only ever holds the signed-in user's own
 // stories (owner_id = auth.uid()), and this is a public reading page for
 // any is_public story, so it can't go through useStories()/getStory().
-type DiscoverStoryRow = {
+type DiscoverStoryRow = TagColumns & {
   id: string;
   owner_id: string;
   title: string;
   type: "oneshot" | "series";
-  tags: string[] | null;
   chapters: Chapter[] | null;
   view_count: number | null;
   like_count: number | null;
@@ -76,7 +76,9 @@ export default function DiscoverStoryPage() {
       // whoever is asking — an anon visitor, another user, or the owner.
       const { data: storyRow, error: storyError } = await supabase
         .from("stories")
-        .select("id, owner_id, title, type, tags, chapters, view_count, like_count, is_public")
+        .select(
+          "id, owner_id, title, type, fandoms, relationships, tag_characters, additional_tags, tags, chapters, view_count, like_count, is_public"
+        )
         .eq("id", id)
         .maybeSingle();
 
@@ -288,7 +290,8 @@ export default function DiscoverStoryPage() {
 
   const isOwner = story.owner_id === user?.id;
   const chapters = story.chapters ?? [];
-  const tags = story.tags ?? [];
+  const tags = tagColumnsToStoryTags(story);
+  const hasAnyTags = TAG_CATEGORIES.some(({ key }) => tags[key].length > 0);
 
   return (
     <>
@@ -341,16 +344,27 @@ export default function DiscoverStoryPage() {
           </button>
         </div>
 
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-8">
-            {tags.map((tag) => (
-              <span key={tag} className="text-xs font-mono text-muted">
-                #{tag}
-              </span>
-            ))}
+        {hasAnyTags && (
+          <div className="space-y-2 mb-8">
+            {TAG_CATEGORIES.map(({ key, label }) => {
+              const values = tags[key];
+              if (values.length === 0) return null;
+              return (
+                <div key={key} className="flex flex-wrap items-baseline gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-faint">
+                    {label}:
+                  </span>
+                  {values.map((tag) => (
+                    <span key={tag} className="text-xs font-mono text-muted">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
-        {tags.length === 0 && <div className="mb-8" />}
+        {!hasAnyTags && <div className="mb-8" />}
 
         <div className="bg-parchment text-[#3A3226] rounded-lg px-6 py-8 sm:px-10 sm:py-12">
           {chapters.length === 0 && (

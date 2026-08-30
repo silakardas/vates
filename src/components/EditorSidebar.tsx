@@ -7,6 +7,7 @@ import { StoryStatus, STATUS_CONFIG } from "@/lib/storyStatus";
 import { useStories } from "@/lib/StoryContext";
 import { relativeTime } from "@/lib/timeAgo";
 import { TAG_CATEGORIES } from "@/lib/tags";
+import PublishReviewModal from "./PublishReviewModal";
 
 const TABS = ["Details", "Characters", "Notes", "Chapters", "History"] as const;
 type Tab = (typeof TABS)[number];
@@ -24,6 +25,7 @@ export default function EditorSidebar(props: {
     additionalTags: "",
   });
   const [versionLabel, setVersionLabel] = useState("");
+  const [showPublishReview, setShowPublishReview] = useState(false);
   const {
     updateStory,
     togglePublic,
@@ -67,6 +69,17 @@ export default function EditorSidebar(props: {
   function handleRestore(versionId: string) {
     if (!activeChapter) return;
     restoreVersion(story.id, activeChapter.id, versionId);
+  }
+
+  // Going private → public opens the review step first (description +
+  // tags, the same fields a reader sees on /discover). Going public →
+  // private (unpublish) needs no review, so it still toggles instantly.
+  function handleShareToggle() {
+    if (story.isPublic) {
+      togglePublic(story.id);
+    } else {
+      setShowPublishReview(true);
+    }
   }
 
   return (
@@ -116,7 +129,7 @@ export default function EditorSidebar(props: {
                 Community
               </label>
               <button
-                onClick={() => togglePublic(story.id)}
+                onClick={handleShareToggle}
                 className={`w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 border transition-colors ${
                   story.isPublic
                     ? "bg-lamp/15 border-lamp/40"
@@ -453,6 +466,10 @@ export default function EditorSidebar(props: {
           </div>
         )}
       </div>
+
+      {showPublishReview && (
+        <PublishReviewModal story={story} onClose={() => setShowPublishReview(false)} />
+      )}
     </aside>
   );
 }

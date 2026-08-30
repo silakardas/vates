@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
 import { StoryProvider } from "@/lib/StoryContext";
 import { AuthProvider } from "@/lib/AuthContext";
+import { SettingsModalProvider } from "@/lib/SettingsModalContext";
 import FeedbackWidget from "@/components/FeedbackWidget";
+import SettingsModal from "@/components/SettingsModal";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -55,8 +57,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           <StoryProvider>
-            {children}
-            <FeedbackWidget />
+            <SettingsModalProvider>
+              {children}
+              <FeedbackWidget />
+              <SettingsModal />
+            </SettingsModalProvider>
           </StoryProvider>
         </AuthProvider>
       </body>

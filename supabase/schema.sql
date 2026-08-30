@@ -400,3 +400,74 @@ from public.profiles
 where show_writer_identity = true;
 
 grant select on public.profile_writer_identity to anon, authenticated;
+
+-- Arkadaşlık sistemi: tek tablo, "pending" satırlar bekleyen istek,
+-- "accepted" satırlar arkadaşlığın kendisi (ayrı bir friendships tablosu
+-- yok — iki kullanıcı, aralarında accepted bir satır varsa arkadaştır).
+-- sender_id/receiver_id sırası kimin istek attığını hatırlamak için var;
+-- arkadaşlık kurulduktan sonra bu sıra artık anlam taşımıyor.
+create table if not exists public.friend_requests (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references auth.users (id) on delete cascade,
+  receiver_id uuid not null references auth.users (id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined')),
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  constraint friend_requests_no_self check (sender_id <> receiver_id),
+  -- Aynı yönde (aynı sender/receiver) tekrar istek atılmasını engeller;
+  -- ters yön (B'nin A'ya atması) ayrı bir satır olarak eklenebilir, ama
+  -- uygulama tarafı (src/lib/friends.ts) bunu insert etmeden önce bekleyen
+  -- bir ters istek var mı diye kontrol edip varsa onu kabul ediyor.
+  constraint friend_requests_unique_pair unique (sender_id, receiver_id)
+);
+
+create index if not exists friend_requests_receiver_idx on public.friend_requests (receiver_id, status);
+create index if not exists friend_requests_sender_idx on public.friend_requests (sender_id, status);
+
+alter table public.friend_requests enable row level security;
+
+-- Bekleyen/reddedilen istekler sadece iki taraf arasında görünür, ama
+-- kabul edilmiş (accepted) satırlar herkese açık: bir profildeki
+-- "Arkadaşlar" listesi, girişli olsun olmasın herkes tarafından
+-- görülebilmeli.
+drop policy if exists "friend requests readable by participants or when accepted" on public.friend_requests;
+create policy "friend requests readable by participants or when accepted"
+  on public.friend_requests for select
+  using (
+    status = 'accepted'
+    or auth.uid() = sender_id
+    or auth.uid() = receiver_id
+  );
+
+drop policy if exists "friend requests insertable by sender" on public.friend_requests;
+create policy "friend requests insertable by sender"
+  on public.friend_requests for insert
+  with check (auth.uid() = sender_id);
+
+-- Sadece alıcı isteğe yanıt verebilir (accepted/declined).
+drop policy if exists "friend requests updatable by receiver" on public.friend_requests;
+create policy "friend requests updatable by receiver"
+  on public.friend_requests for update
+  using (auth.uid() = receiver_id)
+  with check (auth.uid() = receiver_id);
+
+-- Gönderen bekleyen isteğini iptal edebilir, taraflardan biri de kurulu
+-- bir arkadaşlığı kaldırabilir (remove friend) — ikisi de aynı silme
+-- işlemi.
+drop policy if exists "friend requests deletable by either party" on public.friend_requests;
+create policy "friend requests deletable by either party"
+  on public.friend_requests for delete
+  using (auth.uid() = sender_id or auth.uid() = receiver_id);
+
+-- Arkadaşlık özelliği herkesin profiline (sadece public hikayesi
+-- olanlara değil) istek atabilmeyi/profillerini görebilmeyi gerektiriyor,
+-- bu yüzden id/name/avatar_url artık giriş yapmış herkese açık. Eski
+-- "profiles are public-readable" (sadece public hikayesi olanlar) ve bu
+-- yeni policy birlikte OR ile birleşiyor, yani anon ziyaretçiler için
+-- eski davranış (yalnızca public hikayesi olan yazarların profili) aynen
+-- korunuyor — sadece girişli kullanıcılar için genişletildi.
+drop policy if exists "profiles are readable by authenticated users" on public.profiles;
+create policy "profiles are readable by authenticated users"
+  on public.profiles for select
+  to authenticated
+  using (true);

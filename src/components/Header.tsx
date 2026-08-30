@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
+import { useSettingsModal } from "@/lib/SettingsModalContext";
 
 export default function Header() {
   const { user } = useAuth();
+  const { openSettings } = useSettingsModal();
   const [open, setOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
@@ -40,9 +42,6 @@ export default function Header() {
           </Link>
           <Link href="/challenge" className="hover:text-parchment transition-colors">
             Today&apos;s Challenge
-          </Link>
-          <Link href="/#discover" className="hover:text-parchment transition-colors">
-            Discover
           </Link>
           {user ? (
             // tabIndex + onBlur on the wrapper lets us close the dropdown
@@ -107,6 +106,17 @@ export default function Header() {
                     >
                       Public profile
                     </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        openSettings();
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
+                    >
+                      Settings
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -189,13 +199,6 @@ export default function Header() {
               >
                 Today&apos;s Challenge
               </Link>
-              <Link
-                href="/#discover"
-                onClick={() => setOpen(false)}
-                className="py-2.5 text-muted hover:text-parchment transition-colors"
-              >
-                Discover
-              </Link>
               {user ? (
                 <>
                   <Link
@@ -212,6 +215,16 @@ export default function Header() {
                   >
                     Public profile
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      openSettings();
+                    }}
+                    className="py-2.5 text-left text-muted hover:text-parchment transition-colors"
+                  >
+                    Settings
+                  </button>
                 </>
               ) : (
                 <Link

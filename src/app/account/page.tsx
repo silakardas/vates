@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
+import { useSettingsModal } from "@/lib/SettingsModalContext";
 import { ALLOWED_AVATAR_TYPES, MAX_AVATAR_BYTES } from "@/lib/avatar";
 
 function formatJoinDate(timestamp: number) {
@@ -20,6 +21,7 @@ function formatJoinDate(timestamp: number) {
 export default function AccountPage() {
   const { user, logout, updateAvatar } = useAuth();
   const { stories } = useStories();
+  const { openSettings } = useSettingsModal();
   const router = useRouter();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -189,9 +191,9 @@ export default function AccountPage() {
               <p className="text-sm text-muted mb-2">
                 You haven&apos;t shared your favorite genre or universe yet.
               </p>
-              <Link href="/settings" className="text-lamp text-sm hover:underline">
+              <button onClick={() => openSettings("Profile")} className="text-lamp text-sm hover:underline">
                 Add it in Settings →
-              </Link>
+              </button>
             </div>
           )}
         </motion.div>
@@ -221,9 +223,9 @@ export default function AccountPage() {
               <p className="text-sm text-muted mb-2">
                 Save a line you wrote that still means something to you.
               </p>
-              <Link href="/settings" className="text-lamp text-sm hover:underline">
+              <button onClick={() => openSettings("Profile")} className="text-lamp text-sm hover:underline">
                 Add it in Settings →
-              </Link>
+              </button>
             </div>
           )}
         </motion.div>
@@ -241,9 +243,12 @@ export default function AccountPage() {
             >
               View public profile
             </Link>
-            <Link href="/settings" className="text-sm text-muted hover:text-parchment transition-colors">
+            <button
+              onClick={() => openSettings()}
+              className="text-sm text-muted hover:text-parchment transition-colors"
+            >
               Settings
-            </Link>
+            </button>
             <button
               onClick={handleLogout}
               className="text-sm text-crimson hover:underline"

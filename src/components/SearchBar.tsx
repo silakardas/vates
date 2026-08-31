@@ -24,6 +24,8 @@ export type PublicStoryRow = TagColumns & {
   published_at: string | null;
 };
 
+export type AuthorInfo = { name: string; username: string };
+
 const DEBOUNCE_MS = 280;
 const MIN_QUERY_LENGTH = 2;
 const QUICK_RESULT_LIMIT = 6;
@@ -60,7 +62,7 @@ export default function SearchBar() {
   const [dismissed, setDismissed] = useState(false);
 
   const [stories, setStories] = useState<PublicStoryRow[]>([]);
-  const [authors, setAuthors] = useState<Record<string, string>>({});
+  const [authors, setAuthors] = useState<Record<string, AuthorInfo>>({});
   const [storiesLoading, setStoriesLoading] = useState(false);
   const storiesRequestedRef = useRef(false);
 
@@ -120,19 +122,22 @@ export default function SearchBar() {
       }
 
       const ownerIds = [...new Set(storyRows.map((s) => s.owner_id))];
-      let authorMap: Record<string, string> = {};
+      let authorMap: Record<string, AuthorInfo> = {};
 
       if (ownerIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from("profiles")
-          .select("id, name")
+          .select("id, name, username")
           .in("id", ownerIds);
 
         if (profilesError) {
           console.error("Failed to load authors:", profilesError.message);
         } else {
           authorMap = Object.fromEntries(
-            (profileRows ?? []).map((p) => [p.id as string, p.name as string])
+            (profileRows ?? []).map((p) => [
+              p.id as string,
+              { name: p.name as string, username: p.username as string },
+            ])
           );
         }
       }
@@ -156,7 +161,7 @@ export default function SearchBar() {
     ? stories
         .map((s) => ({
           story: s,
-          score: storyMatchScore(s, q, authors[s.owner_id], tagColumnsToStoryTags(s)),
+          score: storyMatchScore(s, q, authors[s.owner_id]?.name, tagColumnsToStoryTags(s)),
         }))
         .filter(({ score }) => score > 0)
         .sort((a, b) => {
@@ -251,7 +256,7 @@ export default function SearchBar() {
                           {story.title}
                         </span>
                         <span className="block text-xs font-mono text-faint truncate">
-                          by {authors[story.owner_id] ?? "Unknown"}
+                          by {authors[story.owner_id]?.name ?? "Unknown"}
                         </span>
                       </span>
                       <span className="text-xs font-mono text-faint flex-shrink-0 whitespace-nowrap pt-0.5">

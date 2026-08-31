@@ -51,10 +51,16 @@ type User = {
   avatarUrl?: string;
   dailyGoal?: number;
   bio?: string;
-  favoriteGenre?: string;
-  recurringUniverse?: string;
   favoriteLine?: string;
   showWriterIdentity?: boolean;
+  // Unlike the fields above, username lives only in `profiles` (it needs
+  // a database-level uniqueness guarantee auth.users' metadata can't
+  // give it), so it isn't known synchronously from the session the way
+  // the rest of this object is — it starts undefined and is filled in
+  // by loadUsername() just after. usernameChangedAt drives the
+  // once-a-week cooldown in Settings.
+  username?: string;
+  usernameChangedAt?: string | null;
 };
 
 type AuthContextType = {
@@ -71,11 +77,10 @@ type AuthContextType = {
     name: string;
     dailyGoal: number;
     bio?: string;
-    favoriteGenre?: string;
-    recurringUniverse?: string;
     favoriteLine?: string;
     showWriterIdentity?: boolean;
   }) => Promise<{ error?: string }>;
+  updateUsername: (username: string) => Promise<{ error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -91,8 +96,6 @@ function toUser(session: Session | null): User | null {
     avatarUrl: user_metadata?.avatar_url as string | undefined,
     dailyGoal: (user_metadata?.daily_goal as number | undefined) ?? 300,
     bio: (user_metadata?.bio as string | undefined) ?? "",
-    favoriteGenre: (user_metadata?.favorite_genre as string | undefined) ?? "",
-    recurringUniverse: (user_metadata?.recurring_universe as string | undefined) ?? "",
     favoriteLine: (user_metadata?.favorite_line as string | undefined) ?? "",
     showWriterIdentity: (user_metadata?.show_writer_identity as boolean | undefined) ?? false,
   };
@@ -103,16 +106,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
+  // username lives in `profiles`, not in the session/metadata toUser()
+  // reads synchronously above, so it's fetched separately and merged in
+  // right after. Best-effort: if it fails, the rest of `user` (which is
+  // what actually gates isLoading) still loads fine.
+  async function loadUsername(userId: string) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("username, username_changed_at")
+      .eq("id", userId)
+      .maybeSingle();
+    if (!data) return;
+    setUser((prev) =>
+      prev && prev.id === userId
+        ? {
+            ...prev,
+            username: data.username as string,
+            usernameChangedAt: data.username_changed_at as string | null,
+          }
+        : prev
+    );
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setUser(toUser(data.session));
+      const nextUser = toUser(data.session);
+      setUser(nextUser);
       setLoading(false);
+      if (nextUser) loadUsername(nextUser.id);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(toUser(session));
+      const nextUser = toUser(session);
+      setUser(nextUser);
+      if (nextUser) loadUsername(nextUser.id);
     });
 
     return () => subscription.unsubscribe();
@@ -179,8 +208,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     name: string;
     dailyGoal: number;
     bio?: string;
-    favoriteGenre?: string;
-    recurringUniverse?: string;
     favoriteLine?: string;
     showWriterIdentity?: boolean;
   }) {
@@ -191,8 +218,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: updates.name,
         daily_goal: updates.dailyGoal,
         bio: updates.bio ?? "",
-        favorite_genre: updates.favoriteGenre ?? "",
-        recurring_universe: updates.recurringUniverse ?? "",
         favorite_line: updates.favoriteLine ?? "",
         show_writer_identity: updates.showWriterIdentity ?? false,
       },
@@ -200,30 +225,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) return { error: error.message };
 
-    // Mirror the writer-identity fields onto profiles, same reasoning as
-    // avatar_url in updateAvatar below: auth.users' metadata (just
-    // written above) isn't readable by anyone but the user themselves,
-    // but /profile/[userId] needs these fields for other visitors. The
-    // profiles table + profile_writer_identity view (see schema.sql)
-    // only ever surface them when show_writer_identity is true, so it's
-    // safe to always write the raw values here regardless of the
-    // toggle's state. Best-effort: the toggle/fields still work from the
-    // user's own perspective (via auth metadata) even if this fails, so
-    // don't surface it as a blocking error.
+    // Mirror name + the writer-identity fields onto profiles, same
+    // reasoning as avatar_url in updateAvatar below: auth.users'
+    // metadata (just written above) isn't readable by anyone but the
+    // user themselves, but /profile/[username] needs these fields for
+    // other visitors. bio/favorite_line only ever surface to other
+    // visitors through the profile_writer_identity view (see
+    // schema.sql), which gates on show_writer_identity — so it's safe
+    // to always write the raw values here regardless of the toggle's
+    // state. Best-effort: the fields still work from the user's own
+    // perspective (via auth metadata) even if this fails, so don't
+    // surface it as a blocking error.
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
+        name: updates.name,
         bio: updates.bio ?? "",
-        favorite_genre: updates.favoriteGenre ?? "",
-        recurring_universe: updates.recurringUniverse ?? "",
         favorite_line: updates.favoriteLine ?? "",
         show_writer_identity: updates.showWriterIdentity ?? false,
       })
       .eq("id", user.id);
     if (profileError) {
-      console.error("Failed to sync writer identity to public profile:", profileError.message);
+      console.error("Failed to sync profile fields to public profile:", profileError.message);
     }
 
+    return {};
+  }
+
+  // Cooldown/format/reserved-word rules are enforced server-side by the
+  // on_username_change trigger (see schema.sql) — this just calls a
+  // plain update and turns the raw Postgres error into something
+  // readable. 23505 is a unique-constraint violation (username already
+  // taken by someone else); anything else (bad format, reserved word,
+  // cooldown still active) comes back as the trigger's own message.
+  async function updateUsername(username: string) {
+    if (!user) return { error: "Not logged in" };
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username })
+      .eq("id", user.id);
+
+    if (error) {
+      if (error.code === "23505") {
+        return { error: "That username is already taken." };
+      }
+      return { error: error.message };
+    }
+
+    setUser((prev) =>
+      prev ? { ...prev, username, usernameChangedAt: new Date().toISOString() } : prev
+    );
     return {};
   }
 
@@ -273,8 +325,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updateError) return { error: updateError.message };
 
     // Also mirror it onto profiles, which — unlike auth.users'
-    // metadata — is readable on the public /profile/[userId] page (for
-    // users with at least one public story). Best-effort: if this
+    // metadata — is readable on the public /profile/[username] page
+    // (for users with at least one public story). Best-effort: if this
     // fails, the user's own avatar (from auth metadata) still works
     // everywhere else in the app, so don't surface it as an error.
     const { error: profileError } = await supabase
@@ -301,6 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updatePassword,
         updateAvatar,
         updateProfile,
+        updateUsername,
       }}
     >
       {children}

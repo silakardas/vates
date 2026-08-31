@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
 import SearchBar from "@/components/SearchBar";
 
-export default function Header({ showSearch = true }: { showSearch?: boolean } = {}) {
+export default function Header() {
   const { user } = useAuth();
   const { openSettings } = useSettingsModal();
   const [open, setOpen] = useState(false);
@@ -101,7 +101,7 @@ export default function Header({ showSearch = true }: { showSearch?: boolean } =
                       My account
                     </Link>
                     <Link
-                      href={`/profile/${user.id}`}
+                      href={`/profile/${user.username ?? user.id}`}
                       role="menuitem"
                       onClick={() => setAccountMenuOpen(false)}
                       className="block px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
@@ -211,7 +211,7 @@ export default function Header({ showSearch = true }: { showSearch?: boolean } =
                     {user.name}&apos;s account
                   </Link>
                   <Link
-                    href={`/profile/${user.id}`}
+                    href={`/profile/${user.username ?? user.id}`}
                     onClick={() => setOpen(false)}
                     className="py-2.5 text-muted hover:text-parchment transition-colors"
                   >
@@ -244,10 +244,8 @@ export default function Header({ showSearch = true }: { showSearch?: boolean } =
     </nav>
     {/* Right below the nav row, so it appears on every page that renders
         <Header /> — this is what replaced the homepage-only
-        DiscoverSection: one persistent, site-wide search bar. Pages that
-        need the editor's full vertical space (like the story editor) can
-        opt out via showSearch={false}. */}
-    {showSearch && <SearchBar />}
+        DiscoverSection: one persistent, site-wide search bar. */}
+    <SearchBar />
     </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import Header from "@/components/Header";
@@ -26,8 +26,14 @@ import { TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
 // identity + writer-identity fields (if the writer opted in), friends,
 // and their published stories.
 
+// Old links/bookmarks used /profile/[uuid]. Recognizing the shape here
+// lets load() fall back to an id lookup and redirect to the canonical
+// /profile/[username] URL, instead of those links just 404ing.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type ProfileRow = {
   id: string;
+  username: string;
   name: string;
   avatar_url: string | null;
   created_at: string;
@@ -35,8 +41,6 @@ type ProfileRow = {
 
 type WriterIdentity = {
   bio: string | null;
-  favorite_genre: string | null;
-  recurring_universe: string | null;
   favorite_line: string | null;
 };
 
@@ -56,7 +60,8 @@ function formatJoinDate(iso: string) {
 }
 
 export default function PublicProfilePage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { username: routeParam } = useParams<{ username: string }>();
+  const router = useRouter();
   const { user } = useAuth();
   const { openSettings } = useSettingsModal();
 
@@ -68,16 +73,21 @@ export default function PublicProfilePage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  const isOwnProfile = user?.id === userId;
+  const isOwnProfile = !!profile && user?.id === profile.id;
 
   const load = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
 
+    // routeParam is normally a username, but a handful of old links out
+    // there still point at the UUID we used to route on — look those up
+    // by id instead, and bounce to the canonical username URL.
+    const lookupColumn = UUID_RE.test(routeParam) ? "id" : "username";
+
     const { data: profileRow } = await supabase
       .from("profiles")
-      .select("id, name, avatar_url, created_at")
-      .eq("id", userId)
+      .select("id, username, name, avatar_url, created_at")
+      .eq(lookupColumn, routeParam)
       .maybeSingle();
 
     if (!profileRow) {
@@ -86,13 +96,19 @@ export default function PublicProfilePage() {
       setLoading(false);
       return;
     }
+
+    if (lookupColumn === "id") {
+      router.replace(`/profile/${(profileRow as ProfileRow).username}`);
+      return;
+    }
+
     setNotFound(false);
     setProfile(profileRow as ProfileRow);
 
     const { data: identityRow } = await supabase
       .from("profile_writer_identity")
-      .select("bio, favorite_genre, recurring_universe, favorite_line")
-      .eq("id", userId)
+      .select("bio, favorite_line")
+      .eq("id", profileRow.id)
       .maybeSingle();
     setIdentity((identityRow as WriterIdentity) ?? null);
 
@@ -101,20 +117,20 @@ export default function PublicProfilePage() {
       .select(
         "id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, published_at, created_at"
       )
-      .eq("owner_id", userId)
+      .eq("owner_id", profileRow.id)
       .eq("is_public", true)
       .order("published_at", { ascending: false, nullsFirst: false });
     setStories((storyRows as ProfileStoryRow[]) ?? []);
 
     const [friendList, incomingList] = await Promise.all([
-      listFriends(userId),
-      user?.id === userId ? listIncomingRequests(userId) : Promise.resolve([]),
+      listFriends(profileRow.id),
+      user?.id === profileRow.id ? listIncomingRequests(profileRow.id) : Promise.resolve([]),
     ]);
     setFriends(friendList);
     setIncoming(incomingList);
 
     setLoading(false);
-  }, [userId, user?.id]);
+  }, [routeParam, router, user?.id]);
 
   useEffect(() => {
     load();
@@ -185,7 +201,7 @@ export default function PublicProfilePage() {
               )}
             </div>
             <p className="text-faint text-xs font-mono">
-              Writing here since {formatJoinDate(profile.created_at)}
+              @{profile.username} · Writing here since {formatJoinDate(profile.created_at)}
             </p>
             {identity?.bio && (
               <p className="text-muted text-sm italic mt-2 max-w-md">&quot;{identity.bio}&quot;</p>
@@ -207,32 +223,6 @@ export default function PublicProfilePage() {
             <p className="text-xs text-muted mt-1">friends</p>
           </div>
         </div>
-
-        {(identity?.favorite_genre || identity?.recurring_universe) && (
-          <div className="mb-12">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-              Writer identity
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {identity.favorite_genre && (
-                <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
-                  <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
-                    Favorite genre
-                  </p>
-                  <p className="font-serif text-parchment truncate">{identity.favorite_genre}</p>
-                </div>
-              )}
-              {identity.recurring_universe && (
-                <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
-                  <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
-                    Recurring universe
-                  </p>
-                  <p className="font-serif text-parchment truncate">{identity.recurring_universe}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {identity?.favorite_line && (
           <div className="mb-12">
@@ -258,7 +248,10 @@ export default function PublicProfilePage() {
                   key={req.requestId}
                   className="flex items-center justify-between gap-3 bg-panel border border-parchment/10 rounded-xl px-4 py-3"
                 >
-                  <Link href={`/profile/${req.from.id}`} className="flex items-center gap-3 min-w-0 group">
+                  <Link
+                    href={`/profile/${req.from.username}`}
+                    className="flex items-center gap-3 min-w-0 group"
+                  >
                     <span className="w-9 h-9 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
                       {req.from.avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -302,7 +295,7 @@ export default function PublicProfilePage() {
               {friends.map((f) => (
                 <Link
                   key={f.id}
-                  href={`/profile/${f.id}`}
+                  href={`/profile/${f.username}`}
                   className="flex items-center gap-2 bg-panel border border-parchment/10 rounded-full pl-1.5 pr-3.5 py-1.5 hover:border-lamp/30 transition-colors"
                 >
                   <span className="w-7 h-7 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-[10px] font-mono flex items-center justify-center overflow-hidden flex-shrink-0">

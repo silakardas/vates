@@ -16,7 +16,7 @@ import {
   searchUsers,
   sendFriendRequest,
 } from "@/lib/friends";
-import type { PublicStoryRow } from "@/components/SearchBar";
+import type { AuthorInfo, PublicStoryRow } from "@/components/SearchBar";
 
 export type SearchTab = "story" | "user";
 
@@ -54,7 +54,7 @@ export default function AdvancedSearchPanel({
   activeTab: SearchTab;
   onTabChange: (tab: SearchTab) => void;
   stories: PublicStoryRow[];
-  authors: Record<string, string>;
+  authors: Record<string, AuthorInfo>;
   storiesLoading: boolean;
 }) {
   return (
@@ -105,7 +105,7 @@ function StoryFilterTab({
 }: {
   query: string;
   stories: PublicStoryRow[];
-  authors: Record<string, string>;
+  authors: Record<string, AuthorInfo>;
   loading: boolean;
 }) {
   const [sortBy, setSortBy] = useState<SortOption>("newest");
@@ -174,7 +174,7 @@ function StoryFilterTab({
     const matchesQuery =
       !q ||
       s.title.toLowerCase().includes(q) ||
-      (authors[s.owner_id]?.toLowerCase().includes(q) ?? false) ||
+      (authors[s.owner_id]?.name.toLowerCase().includes(q) ?? false) ||
       (tags?.fandoms.some((t) => t.includes(q)) ?? false) ||
       (tags?.characters.some((t) => t.includes(q)) ?? false);
     // AND across (and within) categories: every selected tag, in every
@@ -319,8 +319,8 @@ function StoryFilterTab({
                   viewCount: story.view_count,
                   likeCount: story.like_count,
                 }}
-                authorName={authors[story.owner_id]}
-                authorId={story.owner_id}
+                authorName={authors[story.owner_id]?.name}
+                authorUsername={authors[story.owner_id]?.username}
               />
             </motion.div>
           ))}
@@ -417,7 +417,7 @@ function UserSearchTab({ query }: { query: string }) {
             key={profile.id}
             className="flex items-center justify-between gap-3 bg-ink-soft border border-parchment/10 rounded-lg px-3.5 py-2.5"
           >
-            <Link href={`/profile/${profile.id}`} className="flex items-center gap-2.5 min-w-0">
+            <Link href={`/profile/${profile.username}`} className="flex items-center gap-2.5 min-w-0">
               <span className="w-8 h-8 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
                 {profile.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

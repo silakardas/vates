@@ -90,7 +90,8 @@ type Tab = (typeof TABS)[number];
 // <Header/>, a close button instead of "back to account" links, and
 // closeSettings() instead of router.push after a destructive action).
 export default function SettingsModal() {
-  const { user, updateProfile, updatePassword, updateAvatar, deleteAccount } = useAuth();
+  const { user, updateProfile, updateUsername, updatePassword, updateAvatar, deleteAccount } =
+    useAuth();
   const { stories } = useStories();
   const { isOpen, closeSettings, initialTab } = useSettingsModal();
   const router = useRouter();
@@ -99,14 +100,17 @@ export default function SettingsModal() {
 
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
-  const [favoriteGenre, setFavoriteGenre] = useState("");
-  const [recurringUniverse, setRecurringUniverse] = useState("");
   const [favoriteLine, setFavoriteLine] = useState("");
   const [showWriterIdentity, setShowWriterIdentity] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(300);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  const [username, setUsername] = useState("");
+  const [usernameSaving, setUsernameSaving] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [usernameSaved, setUsernameSaved] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -127,11 +131,10 @@ export default function SettingsModal() {
     if (user) {
       setName(user.name);
       setBio(user.bio ?? "");
-      setFavoriteGenre(user.favoriteGenre ?? "");
-      setRecurringUniverse(user.recurringUniverse ?? "");
       setFavoriteLine(user.favoriteLine ?? "");
       setShowWriterIdentity(user.showWriterIdentity ?? false);
       setDailyGoal(user.dailyGoal ?? 300);
+      setUsername(user.username ?? "");
     }
   }, [user]);
 
@@ -154,6 +157,20 @@ export default function SettingsModal() {
   const totalWords = stories.reduce((sum, s) => sum + totalWordCount(s), 0);
   const streak = stories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0);
 
+  // Username can only change once a week — see the on_username_change
+  // trigger in schema.sql, which is what actually enforces this; this is
+  // just so the UI can disable the field and explain why ahead of time
+  // instead of the person hitting a surprise error on submit.
+  const USERNAME_COOLDOWN_DAYS = 7;
+  const nextUsernameChangeAt = user.usernameChangedAt
+    ? new Date(
+        new Date(user.usernameChangedAt).getTime() + USERNAME_COOLDOWN_DAYS * 24 * 60 * 60 * 1000
+      )
+    : null;
+  const usernameCoolingDown = !!nextUsernameChangeAt && nextUsernameChangeAt.getTime() > Date.now();
+  const usernameFormatValid = /^[a-z0-9_]{3,20}$/.test(username);
+  const usernameUnchanged = username === (user.username ?? "");
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -169,8 +186,6 @@ export default function SettingsModal() {
       name: name.trim(),
       dailyGoal,
       bio: bio.trim(),
-      favoriteGenre: favoriteGenre.trim(),
-      recurringUniverse: recurringUniverse.trim(),
       favoriteLine: favoriteLine.trim(),
       showWriterIdentity,
     });
@@ -182,6 +197,30 @@ export default function SettingsModal() {
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  }
+
+  async function handleUsernameSave(e: React.FormEvent) {
+    e.preventDefault();
+    setUsernameError(null);
+    setUsernameSaved(false);
+
+    if (!usernameFormatValid) {
+      setUsernameError(
+        "3-20 characters: lowercase letters, numbers, and underscores only."
+      );
+      return;
+    }
+
+    setUsernameSaving(true);
+    const result = await updateUsername(username);
+    setUsernameSaving(false);
+
+    if (result.error) {
+      setUsernameError(result.error);
+      return;
+    }
+    setUsernameSaved(true);
+    setTimeout(() => setUsernameSaved(false), 2500);
   }
 
   async function handleAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -339,6 +378,54 @@ export default function SettingsModal() {
               <div className="flex-1 min-w-0 grid gap-8 lg:grid-cols-[1fr_260px]">
                 <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6">
                   {tab === "Profile" && (
+                    <form onSubmit={handleUsernameSave} className="space-y-3 pb-6 mb-6 border-b border-parchment/10">
+                      <label className="block font-mono text-xs text-muted uppercase tracking-wide">
+                        Username
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-faint text-sm">vates.app/profile/</span>
+                        <input
+                          value={username}
+                          onChange={(e) =>
+                            setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
+                          }
+                          disabled={usernameCoolingDown}
+                          maxLength={20}
+                          className="flex-1 min-w-0 bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors disabled:opacity-60"
+                        />
+                        <button
+                          type="submit"
+                          disabled={
+                            usernameSaving ||
+                            usernameCoolingDown ||
+                            usernameUnchanged ||
+                            !usernameFormatValid
+                          }
+                          className="bg-lamp text-ink text-sm font-semibold px-4 py-2.5 rounded-lg disabled:opacity-40 flex-shrink-0"
+                        >
+                          {usernameSaving ? "…" : "Save"}
+                        </button>
+                      </div>
+                      <p className="text-[10px] font-mono text-faint">
+                        Lowercase letters, numbers, and underscores only · 3-20 characters · can be
+                        changed once a week
+                      </p>
+                      {usernameCoolingDown && nextUsernameChangeAt && (
+                        <p className="text-xs text-muted">
+                          You can change it again on{" "}
+                          {nextUsernameChangeAt.toLocaleDateString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                          })}
+                          .
+                        </p>
+                      )}
+                      {usernameError && <p className="text-xs text-red-400">{usernameError}</p>}
+                      {usernameSaved && <p className="text-xs text-completed">Saved.</p>}
+                    </form>
+                  )}
+
+                  {tab === "Profile" && (
                     <form onSubmit={handleSave} className="space-y-6">
                       <div className="flex items-center gap-5">
                         <button
@@ -399,7 +486,7 @@ export default function SettingsModal() {
 
                       <div>
                         <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-                          Bio
+                          About
                         </label>
                         <textarea
                           value={bio}
@@ -412,76 +499,41 @@ export default function SettingsModal() {
                         <p className="text-[10px] font-mono text-faint mt-1">{bio.length}/160</p>
                       </div>
 
-                      <div className="pt-2 border-t border-parchment/10">
-                        <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4 pt-4">
-                          Writer identity
+                      <div>
+                        <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
+                          Favorite line
+                        </label>
+                        <textarea
+                          value={favoriteLine}
+                          onChange={(e) => setFavoriteLine(e.target.value)}
+                          maxLength={200}
+                          rows={2}
+                          placeholder="A line you wrote that still means something to you…"
+                          className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none placeholder:text-faint"
+                        />
+                        <p className="text-[10px] font-mono text-faint mt-1">
+                          {favoriteLine.length}/200
                         </p>
-
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-                              Favorite genre
-                            </label>
-                            <input
-                              value={favoriteGenre}
-                              onChange={(e) => setFavoriteGenre(e.target.value)}
-                              maxLength={40}
-                              placeholder="e.g. Gothic horror"
-                              className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-                              Recurring universe
-                            </label>
-                            <input
-                              value={recurringUniverse}
-                              onChange={(e) => setRecurringUniverse(e.target.value)}
-                              maxLength={40}
-                              placeholder="A world you keep coming back to"
-                              className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-                              Favorite line
-                            </label>
-                            <textarea
-                              value={favoriteLine}
-                              onChange={(e) => setFavoriteLine(e.target.value)}
-                              maxLength={200}
-                              rows={2}
-                              placeholder="A line you wrote that still means something to you…"
-                              className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors resize-none placeholder:text-faint"
-                            />
-                            <p className="text-[10px] font-mono text-faint mt-1">
-                              {favoriteLine.length}/200
-                            </p>
-                          </div>
-
-                          <label className="flex items-start gap-3 pt-2 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={showWriterIdentity}
-                              onChange={(e) => setShowWriterIdentity(e.target.checked)}
-                              className="mt-0.5 w-4 h-4 rounded border-parchment/20 bg-ink-soft accent-lamp"
-                            />
-                            <span>
-                              <span className="block text-sm text-parchment">
-                                Show on my public profile
-                              </span>
-                              <span className="block text-xs text-muted mt-0.5">
-                                When on, your bio, favorite genre, recurring universe, and
-                                favorite line all appear on your public profile — visible to
-                                anyone, including people who aren&apos;t logged in. Off by
-                                default, and off means none of these four show there at all.
-                              </span>
-                            </span>
-                          </label>
-                        </div>
                       </div>
+
+                      <label className="flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={showWriterIdentity}
+                          onChange={(e) => setShowWriterIdentity(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-parchment/20 bg-ink-soft accent-lamp"
+                        />
+                        <span>
+                          <span className="block text-sm text-parchment">
+                            Show on my public profile
+                          </span>
+                          <span className="block text-xs text-muted mt-0.5">
+                            When on, your about and favorite line appear on your public profile —
+                            visible to anyone, including people who aren&apos;t logged in. Off by
+                            default, and off means neither shows there.
+                          </span>
+                        </span>
+                      </label>
 
                       {error && <p className="text-xs text-red-400">{error}</p>}
                       {saved && <p className="text-xs text-completed">Saved.</p>}
@@ -684,7 +736,7 @@ export default function SettingsModal() {
                     </div>
                   </div>
                   <p className="text-sm text-muted italic leading-relaxed mb-6">
-                    {bio ? `"${bio}"` : "No bio yet — add one in the Profile tab."}
+                    {bio ? `"${bio}"` : "Nothing added yet — add one in the Profile tab."}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 text-center border-t border-parchment/10 pt-4">

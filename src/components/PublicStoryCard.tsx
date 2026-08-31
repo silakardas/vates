@@ -4,7 +4,7 @@ import Link from "next/link";
 import { StoryTags } from "@/lib/types";
 
 // Presentational card for a single publicly-shared story. Pulled out of
-// /discover so /profile/[userId] and the homepage's "Community spotlight"
+// /discover so /profile/[username] and the homepage's "Community spotlight"
 // section can render the exact same card without copy-pasting the markup.
 export type PublicStoryCardData = {
   id: string;
@@ -18,13 +18,13 @@ export type PublicStoryCardData = {
 export default function PublicStoryCard({
   story,
   authorName,
-  authorId,
+  authorUsername,
 }: {
   story: PublicStoryCardData;
-  // Both optional: /profile/[userId] already shows the author once at
+  // Both optional: /profile/[username] already shows the author once at
   // the top of the page, so it skips this line entirely.
   authorName?: string;
-  authorId?: string;
+  authorUsername?: string;
 }) {
   const description = story.description?.trim() || null;
   const fandoms = story.tags?.fandoms ?? [];
@@ -38,7 +38,7 @@ export default function PublicStoryCard({
 
   return (
     // The whole card is clickable (goes to the story), but the author
-    // name is its own link to /profile/[authorId] — and anchors can't
+    // name is its own link to /profile/[authorUsername] — and anchors can't
     // nest — so this uses the "stretched link" pattern: an absolutely
     // positioned anchor covers the card, everything else is
     // pointer-events-none *except* the author line, which sits above
@@ -61,8 +61,8 @@ export default function PublicStoryCard({
       {authorName && (
         <p className="relative z-10 text-xs font-mono text-faint mb-2 w-fit">
           by{" "}
-          {authorId ? (
-            <Link href={`/profile/${authorId}`} className="hover:text-lamp transition-colors">
+          {authorUsername ? (
+            <Link href={`/profile/${authorUsername}`} className="hover:text-lamp transition-colors">
               {authorName}
             </Link>
           ) : (

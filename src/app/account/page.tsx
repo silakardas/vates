@@ -156,48 +156,6 @@ export default function AccountPage() {
           </div>
         </motion.div>
 
-        {/* Writer identity */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.15, ease: "easeOut" }}
-          className="mb-16"
-        >
-          <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-            Writer identity
-          </p>
-
-          {user.favoriteGenre || user.recurringUniverse ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
-                <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
-                  Favorite genre
-                </p>
-                <p className="font-serif text-parchment truncate" title={user.favoriteGenre}>
-                  {user.favoriteGenre || "—"}
-                </p>
-              </div>
-              <div className="bg-panel border border-parchment/10 rounded-xl px-5 py-4">
-                <p className="text-[10px] font-mono text-faint uppercase tracking-wide mb-1">
-                  Recurring universe
-                </p>
-                <p className="font-serif text-parchment truncate" title={user.recurringUniverse}>
-                  {user.recurringUniverse || "—"}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6 text-center">
-              <p className="text-sm text-muted mb-2">
-                You haven&apos;t shared your favorite genre or universe yet.
-              </p>
-              <button onClick={() => openSettings("Profile")} className="text-lamp text-sm hover:underline">
-                Add it in Settings →
-              </button>
-            </div>
-          )}
-        </motion.div>
-
         {/* Meaningful moments */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -238,7 +196,7 @@ export default function AccountPage() {
         >
           <div className="flex items-center gap-6">
             <Link
-              href={`/profile/${user.id}`}
+              href={`/profile/${user.username ?? user.id}`}
               className="text-sm text-muted hover:text-parchment transition-colors"
             >
               View public profile

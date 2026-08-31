@@ -16,6 +16,7 @@ export type FriendStatus =
 
 export type FriendProfile = {
   id: string;
+  username: string;
   name: string;
   avatarUrl: string | null;
 };
@@ -117,11 +118,12 @@ export async function listFriends(userId: string): Promise<FriendProfile[]> {
   const otherIds = links.map((r) => (r.sender_id === userId ? r.receiver_id : r.sender_id));
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, name, avatar_url")
+    .select("id, username, name, avatar_url")
     .in("id", otherIds);
 
   return (profiles ?? []).map((p) => ({
     id: p.id as string,
+    username: p.username as string,
     name: p.name as string,
     avatarUrl: (p.avatar_url as string | null) ?? null,
   }));
@@ -147,7 +149,7 @@ export async function searchUsers(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, name, avatar_url")
+    .select("id, username, name, avatar_url")
     .ilike("name", `%${q}%`)
     .neq("id", excludeUserId)
     .limit(USER_SEARCH_LIMIT);
@@ -159,6 +161,7 @@ export async function searchUsers(
 
   return (data ?? []).map((p) => ({
     id: p.id as string,
+    username: p.username as string,
     name: p.name as string,
     avatarUrl: (p.avatar_url as string | null) ?? null,
   }));
@@ -178,7 +181,7 @@ export async function listIncomingRequests(userId: string): Promise<IncomingRequ
   const senderIds = requests.map((r) => r.sender_id);
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, name, avatar_url")
+    .select("id, username, name, avatar_url")
     .in("id", senderIds);
 
   const byId = new Map((profiles ?? []).map((p) => [p.id as string, p]));
@@ -190,6 +193,7 @@ export async function listIncomingRequests(userId: string): Promise<IncomingRequ
       createdAt: r.created_at as string,
       from: {
         id: r.sender_id as string,
+        username: (sender?.username as string | undefined) ?? r.sender_id,
         name: (sender?.name as string | undefined) ?? "A writer",
         avatarUrl: (sender?.avatar_url as string | null | undefined) ?? null,
       },

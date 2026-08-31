@@ -26,6 +26,59 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
+// Small seeded PRNG so the star field looks the same every time a given
+// card is drawn, instead of reshuffling on each re-render.
+function makeRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+// Scatters plain, gradient-free dots across the canvas — a light starry
+// sky instead of a gradient wash. A handful are drawn slightly bigger
+// with a thin four-point sparkle so the field has some depth.
+function drawStars(ctx: CanvasRenderingContext2D, size: number) {
+  const rand = makeRandom(1337);
+
+  const dustCount = 160;
+  for (let i = 0; i < dustCount; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = rand() * 1.1 + 0.3;
+    const opacity = rand() * 0.45 + 0.12;
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(237,230,214,${opacity.toFixed(2)})`;
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const sparkleCount = 16;
+  for (let i = 0; i < sparkleCount; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const arm = rand() * 5 + 4;
+    const warm = rand() > 0.5;
+    const color = warm ? "232,163,61" : "237,230,214";
+    const opacity = rand() * 0.35 + 0.35;
+
+    ctx.strokeStyle = `rgba(${color},${opacity.toFixed(2)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - arm, y);
+    ctx.lineTo(x + arm, y);
+    ctx.moveTo(x, y - arm);
+    ctx.lineTo(x, y + arm);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(${color},${(opacity + 0.2).toFixed(2)})`;
+    ctx.arc(x, y, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function drawCard(canvas: HTMLCanvasElement, text: string, storyTitle?: string) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -39,32 +92,8 @@ function drawCard(canvas: HTMLCanvasElement, text: string, storyTitle?: string) 
   ctx.fillStyle = "#1B2430";
   ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
 
-  // ember glow
-  const glow = ctx.createRadialGradient(
-    CARD_SIZE * 0.18,
-    CARD_SIZE * 0.08,
-    0,
-    CARD_SIZE * 0.18,
-    CARD_SIZE * 0.08,
-    CARD_SIZE * 0.75
-  );
-  glow.addColorStop(0, "rgba(232,163,61,0.16)");
-  glow.addColorStop(1, "rgba(232,163,61,0)");
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
-
-  const glow2 = ctx.createRadialGradient(
-    CARD_SIZE * 0.95,
-    CARD_SIZE * 0.85,
-    0,
-    CARD_SIZE * 0.95,
-    CARD_SIZE * 0.85,
-    CARD_SIZE * 0.6
-  );
-  glow2.addColorStop(0, "rgba(144,136,201,0.12)");
-  glow2.addColorStop(1, "rgba(144,136,201,0)");
-  ctx.fillStyle = glow2;
-  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
+  // light starry sky instead of a gradient wash
+  drawStars(ctx, CARD_SIZE);
 
   // faint grain
   ctx.fillStyle = "rgba(237,230,214,0.045)";

@@ -80,9 +80,19 @@ export default function PublishReviewModal(props: { story: Story; onClose: () =>
               const values = story.tags[key];
               return (
                 <div key={key}>
-                  <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
-                    {label}
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <label className="block font-mono text-[10px] uppercase tracking-wide text-muted">
+                      {label}
+                    </label>
+                    {key === "fandoms" && (
+                      <button
+                        onClick={() => addTag(story.id, "fandoms", "Original Work")}
+                        className="font-mono text-[10px] uppercase tracking-wide text-lamp/80 hover:text-lamp transition-colors"
+                      >
+                        + Original Work
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {values.length === 0 && (
                       <p className="text-xs text-faint">No {label.toLowerCase()} tags yet.</p>

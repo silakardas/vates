@@ -11,7 +11,6 @@ import WordLookupDemo from "@/components/WordLookupDemo";
 import EditorTypingDemo from "@/components/EditorTypingDemo";
 import StreakDemo from "@/components/StreakDemo";
 import StatsCounterDemo from "@/components/StatsCounterDemo";
-import DiscoverSection from "@/components/DiscoverSection";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
 import { randomLine, timeGreeting } from "@/lib/greeting";
@@ -351,7 +350,6 @@ export default function Home() {
         </section>
       )}
 
-      <DiscoverSection />
       <Footer />
     </>
   );

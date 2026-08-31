@@ -127,6 +127,43 @@ export async function listFriends(userId: string): Promise<FriendProfile[]> {
   }));
 }
 
+// How many profiles the global search bar's "Users" tab shows at once —
+// a quick-glance list, not a full paginated directory.
+const USER_SEARCH_LIMIT = 8;
+
+// Searches profiles by name for the global search bar's "Users" tab.
+// Relies on the "profiles are readable by authenticated users" policy
+// (see supabase/schema.sql) — id/name/avatar_url are only guaranteed
+// visible for every profile, not just ones with a public story, when
+// called with a signed-in Supabase client. Callers should only surface
+// this to logged-in users.
+export async function searchUsers(
+  query: string,
+  excludeUserId: string
+): Promise<FriendProfile[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, name, avatar_url")
+    .ilike("name", `%${q}%`)
+    .neq("id", excludeUserId)
+    .limit(USER_SEARCH_LIMIT);
+
+  if (error) {
+    console.error("Failed to search users:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((p) => ({
+    id: p.id as string,
+    name: p.name as string,
+    avatarUrl: (p.avatar_url as string | null) ?? null,
+  }));
+}
+
 export async function listIncomingRequests(userId: string): Promise<IncomingRequest[]> {
   const supabase = createClient();
   const { data: requests } = await supabase

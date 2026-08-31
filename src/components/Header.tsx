@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
+import SearchBar from "@/components/SearchBar";
 
 export default function Header() {
   const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function Header() {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   return (
+    <>
     <nav className="relative px-4 sm:px-8 py-5 sm:py-7 border-b border-parchment/10">
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
@@ -240,5 +242,10 @@ export default function Header() {
         )}
       </AnimatePresence>
     </nav>
+    {/* Right below the nav row, so it appears on every page that renders
+        <Header /> — this is what replaced the homepage-only
+        DiscoverSection: one persistent, site-wide search bar. */}
+    <SearchBar />
+    </>
   );
 }

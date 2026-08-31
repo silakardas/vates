@@ -277,10 +277,10 @@ export default function DiscoverStoryPage() {
         <main className="text-parchment px-5 sm:px-8 py-24 text-center">
           <p className="text-muted">This story doesn&apos;t exist, or isn&apos;t public.</p>
           <button
-            onClick={() => router.push("/#discover")}
+            onClick={() => router.push("/")}
             className="mt-4 text-lamp font-mono text-sm hover:underline"
           >
-            ← Back to Discover
+            ← Back home
           </button>
         </main>
         <Footer />
@@ -299,10 +299,10 @@ export default function DiscoverStoryPage() {
       <main className="text-parchment px-5 py-10 sm:px-8 sm:py-14 max-w-3xl mx-auto">
         <div className="flex items-center justify-between gap-3 mb-6">
           <Link
-            href="/#discover"
+            href="/"
             className="text-muted font-mono text-xs hover:text-lamp transition-colors whitespace-nowrap"
           >
-            ← Back to Discover
+            ← Back home
           </Link>
 
           {isOwner && (

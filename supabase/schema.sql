@@ -366,10 +366,6 @@ alter table public.profiles
   add column if not exists favorite_line text,
   add column if not exists show_writer_identity boolean not null default false;
 
-alter table public.profiles
-  drop column if exists favorite_genre,
-  drop column if exists recurring_universe;
-
 -- IMPORTANT: RLS is row-level, not column-level. The existing "profiles
 -- are public-readable" policy makes the whole *row* visible to anyone
 -- once its owner has one public story — it can't be taught to hide just
@@ -403,13 +399,24 @@ grant select (id, username, name, avatar_url, created_at, show_writer_identity)
 -- above. The `where show_writer_identity = true` is the actual opt-in
 -- gate: a row (and therefore these fields) only ever comes back
 -- through this view for writers who turned the toggle on in Settings.
-create or replace view public.profile_writer_identity
+-- CREATE OR REPLACE VIEW can only *append* columns in Postgres, never
+-- remove or reorder them — since this view is shrinking from five
+-- columns down to three (favorite_genre/recurring_universe are gone),
+-- it has to be dropped and recreated instead.
+drop view if exists public.profile_writer_identity;
+
+create view public.profile_writer_identity
 with (security_invoker = true) as
 select id, bio, favorite_line
 from public.profiles
 where show_writer_identity = true;
 
 grant select on public.profile_writer_identity to anon, authenticated;
+
+-- Only safe to drop now that the view above no longer references them.
+alter table public.profiles
+  drop column if exists favorite_genre,
+  drop column if exists recurring_universe;
 
 -- Arkadaşlık sistemi: tek tablo, "pending" satırlar bekleyen istek,
 -- "accepted" satırlar arkadaşlığın kendisi (ayrı bir friendships tablosu

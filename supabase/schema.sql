@@ -377,11 +377,11 @@ alter table public.profiles
 -- fields that were always meant to be public. bio/favorite_line are
 -- deliberately left out of this grant — the only sanctioned way to
 -- read them for someone else's profile is the view below, which
--- enforces the opt-in itself. username is included here: it's the
--- public identifier /profile/[username] is looked up by, and it's
--- never gated by show_writer_identity.
+-- enforces the opt-in itself. username is granted separately, further
+-- down, right after the column that creates it — see the username
+-- section below.
 revoke select on public.profiles from anon, authenticated;
-grant select (id, username, name, avatar_url, created_at, show_writer_identity)
+grant select (id, name, avatar_url, created_at, show_writer_identity)
   on public.profiles to anon, authenticated;
 -- (UPDATE is untouched by the above, and stays governed by the existing
 -- "profiles are self-updatable" RLS policy plus the on_username_change
@@ -502,6 +502,12 @@ alter table public.stories
 alter table public.profiles
   add column if not exists username text,
   add column if not exists username_changed_at timestamptz;
+
+-- The "Writer identity" section above already grants anon/authenticated
+-- select on the rest of the always-public columns, but it runs before
+-- this column exists — GRANT SELECT (col) requires the column to
+-- already be there, so username's grant has to happen here instead.
+grant select (username) on public.profiles to anon, authenticated;
 
 -- Var olan kullanıcılar için (bu sütun ilk eklendiğinde) otomatik bir
 -- username üretir: isimden türetilmiş, çakışırsa sonuna sayı eklenmiş

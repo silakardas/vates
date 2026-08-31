@@ -10,6 +10,7 @@ import PublicStoryCard from "@/components/PublicStoryCard";
 import FriendButton from "@/components/FriendButton";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/AuthContext";
+import { useStories } from "@/lib/StoryContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
 import {
   FriendProfile,
@@ -63,6 +64,7 @@ export default function PublicProfilePage() {
   const { username: routeParam } = useParams<{ username: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { stories: ownStories } = useStories();
   const { openSettings } = useSettingsModal();
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -142,6 +144,13 @@ export default function PublicProfilePage() {
   }
 
   const totalWords = stories.reduce((sum, s) => sum + (s.word_count ?? 0), 0);
+  // Streak is a private writing-habit stat (draft-inclusive), so it's only
+  // ever computed from the signed-in user's own StoryContext, and only
+  // shown on their own profile — never derived from another writer's
+  // published-only story rows.
+  const streak = isOwnProfile
+    ? ownStories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0)
+    : 0;
 
   if (loading) {
     return (
@@ -209,7 +218,11 @@ export default function PublicProfilePage() {
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 my-10 max-w-md">
+        <div
+          className={`grid gap-3 sm:gap-4 my-10 max-w-md ${
+            isOwnProfile ? "grid-cols-4" : "grid-cols-3"
+          }`}
+        >
           <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{stories.length}</p>
             <p className="text-xs text-muted mt-1">published</p>
@@ -222,9 +235,15 @@ export default function PublicProfilePage() {
             <p className="font-mono text-2xl text-lamp">{friends.length}</p>
             <p className="text-xs text-muted mt-1">friends</p>
           </div>
+          {isOwnProfile && (
+            <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+              <p className="font-mono text-2xl text-lamp">{streak || "—"}</p>
+              <p className="text-xs text-muted mt-1">day streak</p>
+            </div>
+          )}
         </div>
 
-        {identity?.favorite_line && (
+        {identity?.favorite_line ? (
           <div className="mb-12">
             <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
               Favorite line
@@ -235,6 +254,25 @@ export default function PublicProfilePage() {
               </p>
             </div>
           </div>
+        ) : (
+          isOwnProfile && (
+            <div className="mb-12">
+              <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+                Favorite line
+              </p>
+              <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6 text-center">
+                <p className="text-sm text-muted mb-2">
+                  Save a line you wrote that still means something to you.
+                </p>
+                <button
+                  onClick={() => openSettings("Profile")}
+                  className="text-lamp text-sm hover:underline"
+                >
+                  Add it in Settings →
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {isOwnProfile && incoming.length > 0 && (

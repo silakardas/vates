@@ -83,12 +83,11 @@ const GOAL_PRESETS = [200, 300, 500, 1000];
 const TABS = ["Profile", "Writing", "Security", "Export"] as const;
 type Tab = (typeof TABS)[number];
 
-// The full Settings experience, now a modal instead of a route — opened
-// from anywhere via useSettingsModal().openSettings(), mounted once in
-// the root layout. Functionally identical to the old /settings page
-// (same tabs, same handlers); only the chrome around it changed (no
-// <Header/>, a close button instead of "back to account" links, and
-// closeSettings() instead of router.push after a destructive action).
+// The full Settings experience, opened from anywhere (Header, or the
+// signed-in user's own /profile/[userId] page) via
+// useSettingsModal().openSettings(), and mounted once in the root layout.
+// There's no separate /account or /settings route — this modal is the
+// entire settings surface, layered over whichever page opened it.
 export default function SettingsModal() {
   const { user, updateProfile, updateUsername, updatePassword, updateAvatar, deleteAccount } =
     useAuth();
@@ -138,9 +137,10 @@ export default function SettingsModal() {
     }
   }, [user]);
 
-  // Land on whichever tab the caller asked for (e.g. "Add it in Settings
-  // →" prompts on /account can jump straight to the right one), and
-  // reset the delete-confirm flow every time the modal reopens.
+  // Land on whichever tab the caller asked for (e.g. the "Add it in
+  // Settings →" prompt on the own profile page can jump straight to the
+  // right one), and reset the delete-confirm flow every time the modal
+  // reopens.
   useEffect(() => {
     if (isOpen) {
       if (initialTab && (TABS as readonly string[]).includes(initialTab)) {

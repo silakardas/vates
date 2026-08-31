@@ -2,16 +2,25 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
 import SearchBar from "@/components/SearchBar";
 
 export default function Header({ showSearch = true }: { showSearch?: boolean }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { openSettings } = useSettingsModal();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  function handleLogout() {
+    setOpen(false);
+    setAccountMenuOpen(false);
+    logout();
+    router.push("/");
+  }
 
   return (
     <>
@@ -93,20 +102,12 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                     className="absolute right-0 top-full mt-2 w-44 bg-panel border border-parchment/10 rounded-xl py-1.5 shadow-lg z-20"
                   >
                     <Link
-                      href="/account"
-                      role="menuitem"
-                      onClick={() => setAccountMenuOpen(false)}
-                      className="block px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
-                    >
-                      My account
-                    </Link>
-                    <Link
                       href={`/profile/${user.username ?? user.id}`}
                       role="menuitem"
                       onClick={() => setAccountMenuOpen(false)}
                       className="block px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
                     >
-                      Public profile
+                      Profile
                     </Link>
                     <button
                       type="button"
@@ -118,6 +119,15 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                       className="block w-full text-left px-4 py-2 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
                     >
                       Settings
+                    </button>
+                    <div className="my-1 border-t border-parchment/10" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2 text-sm text-crimson hover:bg-parchment/5 transition-colors"
+                    >
+                      Log out
                     </button>
                   </motion.div>
                 )}
@@ -136,7 +146,11 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
         {/* Mobile: avatar (if logged in) + menu toggle */}
         <div className="flex sm:hidden items-center gap-3">
           {user && (
-            <Link href="/account" className="flex-shrink-0" onClick={() => setOpen(false)}>
+            <Link
+              href={`/profile/${user.username ?? user.id}`}
+              className="flex-shrink-0"
+              onClick={() => setOpen(false)}
+            >
               <span className="w-8 h-8 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden">
                 {user.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -204,18 +218,11 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
               {user ? (
                 <>
                   <Link
-                    href="/account"
-                    onClick={() => setOpen(false)}
-                    className="py-2.5 text-muted hover:text-parchment transition-colors"
-                  >
-                    {user.name}&apos;s account
-                  </Link>
-                  <Link
                     href={`/profile/${user.username ?? user.id}`}
                     onClick={() => setOpen(false)}
                     className="py-2.5 text-muted hover:text-parchment transition-colors"
                   >
-                    Public profile
+                    {user.name}&apos;s profile
                   </Link>
                   <button
                     type="button"
@@ -226,6 +233,13 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                     className="py-2.5 text-left text-muted hover:text-parchment transition-colors"
                   >
                     Settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="py-2.5 text-left text-crimson hover:underline"
+                  >
+                    Log out
                   </button>
                 </>
               ) : (

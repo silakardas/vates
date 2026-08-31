@@ -11,10 +11,10 @@ type SettingsModalContextType = {
 
 const SettingsModalContext = createContext<SettingsModalContextType | null>(null);
 
-// Lets any component (Header's account dropdown, /account's inline links,
-// a "you haven't set X yet" prompt, etc.) open the Settings modal without
-// needing to render it themselves — SettingsModal itself is mounted once,
-// in the root layout, and just reads isOpen from here.
+// Lets any component (Header's account dropdown, /profile/[userId]'s own-
+// profile links, a "you haven't set X yet" prompt, etc.) open the Settings
+// modal without needing to render it themselves — SettingsModal itself is
+// mounted once, in the root layout, and just reads isOpen from here.
 export function SettingsModalProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [initialTab, setInitialTab] = useState<string | undefined>(undefined);

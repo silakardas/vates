@@ -353,49 +353,59 @@ alter table public.stories
      from jsonb_array_elements(chapters) as chapter)
   ) stored;
 
--- "Writer identity" (bio, favorite genre/universe, favorite line) and a
--- show_writer_identity opt-in flag, so /profile/[userId] can mirror the
--- /account page's "Writer identity" / "Meaningful moments" sections —
--- but only for writers who chose to share them.
+-- "Writer identity" (bio, favorite line) and a show_writer_identity
+-- opt-in flag, so /profile/[username] can mirror the /account page's
+-- "Writer identity" / "Meaningful moments" sections — but only for
+-- writers who chose to share them. favorite_genre/recurring_universe
+-- used to live here too; dropped as part of simplifying the profile
+-- (see the username section below) since they turned out to be mostly
+-- unused. Any values a writer had already filled in are gone with the
+-- columns — nothing preserved them elsewhere.
 alter table public.profiles
   add column if not exists bio text,
-  add column if not exists favorite_genre text,
-  add column if not exists recurring_universe text,
   add column if not exists favorite_line text,
   add column if not exists show_writer_identity boolean not null default false;
+
+alter table public.profiles
+  drop column if exists favorite_genre,
+  drop column if exists recurring_universe;
 
 -- IMPORTANT: RLS is row-level, not column-level. The existing "profiles
 -- are public-readable" policy makes the whole *row* visible to anyone
 -- once its owner has one public story — it can't be taught to hide just
--- these four columns while still exposing name/avatar_url. Left alone,
--- anyone could read bio/favorite_genre/recurring_universe/favorite_line
--- straight off `profiles` via PostgREST even with show_writer_identity
--- left off, since Supabase grants blanket SELECT on public schema tables
--- to anon/authenticated by default. So: revoke that blanket grant and
--- re-grant only the fields that were always meant to be public. The
--- four opt-in fields are deliberately left out of this grant — the only
--- sanctioned way to read them for someone else's profile is the view
--- below, which enforces the opt-in itself.
+-- these columns while still exposing name/avatar_url. Left alone,
+-- anyone could read bio/favorite_line straight off `profiles` via
+-- PostgREST even with show_writer_identity left off, since Supabase
+-- grants blanket SELECT on public schema tables to anon/authenticated
+-- by default. So: revoke that blanket grant and re-grant only the
+-- fields that were always meant to be public. bio/favorite_line are
+-- deliberately left out of this grant — the only sanctioned way to
+-- read them for someone else's profile is the view below, which
+-- enforces the opt-in itself. username is included here: it's the
+-- public identifier /profile/[username] is looked up by, and it's
+-- never gated by show_writer_identity.
 revoke select on public.profiles from anon, authenticated;
-grant select (id, name, avatar_url, created_at, show_writer_identity)
+grant select (id, username, name, avatar_url, created_at, show_writer_identity)
   on public.profiles to anon, authenticated;
 -- (UPDATE is untouched by the above, and stays governed by the existing
--- "profiles are self-updatable" RLS policy — an owner can still write
--- their own bio/favorite_genre/recurring_universe/favorite_line/
--- show_writer_identity. They never need to SELECT them back off this
--- table though: the app reads its own copy from auth.users' metadata,
--- the same place it already reads bio/favoriteGenre/etc. from today —
--- see AuthContext.tsx.)
+-- "profiles are self-updatable" RLS policy plus the on_username_change
+-- trigger below — an owner can still write their own bio/favorite_line/
+-- show_writer_identity/username. They never need to SELECT
+-- bio/favorite_line back off this table though: the app reads its own
+-- copy from auth.users' metadata, the same place it already reads
+-- bio/favoriteLine from today — see AuthContext.tsx. username, unlike
+-- those two, IS read back from `profiles` directly, since it's not
+-- mirrored into auth metadata — see the username section below.)
 
 -- security_invoker = true (Postgres 15+) makes this view enforce RLS
 -- using the *caller's* privileges against the base table, not the view
 -- owner's — without it, a plain view would silently bypass everything
 -- above. The `where show_writer_identity = true` is the actual opt-in
--- gate: a row (and therefore these four fields) only ever comes back
+-- gate: a row (and therefore these fields) only ever comes back
 -- through this view for writers who turned the toggle on in Settings.
 create or replace view public.profile_writer_identity
 with (security_invoker = true) as
-select id, bio, favorite_genre, recurring_universe, favorite_line
+select id, bio, favorite_line
 from public.profiles
 where show_writer_identity = true;
 
@@ -471,9 +481,122 @@ create policy "profiles are readable by authenticated users"
   on public.profiles for select
   to authenticated
   using (true);
+-- Kullanıcı adı (username): profil sayfasının artık UUID yerine
+-- /profile/[username] üzerinden erişildiği, akılda kalıcı, kullanıcının
+-- kendi seçtiği bir takma ad. Biçim kuralı (yalnızca küçük harf/rakam/
+-- alt çizgi, 3-20 karakter) hem check constraint hem de aşağıdaki
+-- trigger'da zorlanıyor; unique index de aynı şekilde çift güvence.
+alter table public.profiles
+  add column if not exists username text,
+  add column if not exists username_changed_at timestamptz;
 
--- Workshop listesinde bir hikayeyi başa sabitleyebilmek (pin) için.
--- Bilerek updated_at'i etkilemiyor: pinleme bir "düzenleme" değil, sadece
--- listedeki sırayı değiştiren bir organizasyon eylemi.
-alter table public.stories
-  add column if not exists is_pinned boolean not null default false;
+-- Var olan kullanıcılar için (bu sütun ilk eklendiğinde) otomatik bir
+-- username üretir: isimden türetilmiş, çakışırsa sonuna sayı eklenmiş
+-- bir aday. handle_new_user() de kayıt anında aynısını çağırıyor.
+create or replace function public.generate_username_from_name(p_name text)
+returns text
+language plpgsql
+as $$
+declare
+  base text;
+  candidate text;
+  suffix int := 0;
+begin
+  base := lower(regexp_replace(coalesce(p_name, ''), '[^a-zA-Z0-9]+', '', 'g'));
+  base := left(base, 20);
+  if base = '' then
+    base := 'writer';
+  end if;
+  if length(base) < 3 then
+    base := rpad(base, 3, '0');
+  end if;
+
+  candidate := base;
+  while exists (select 1 from public.profiles where username = candidate) loop
+    suffix := suffix + 1;
+    candidate := left(base, 20 - length(suffix::text)) || suffix::text;
+  end loop;
+
+  return candidate;
+end;
+$$;
+
+-- Bu script her rerun edildiğinde sadece username'i hâlâ boş olan
+-- satırları doldurur (if not exists ile eklenen sütun ilk kez
+-- oluşturulduğunda ya da yeni bir satır bir şekilde boş kaldıysa).
+update public.profiles
+set username = public.generate_username_from_name(name)
+where username is null;
+
+alter table public.profiles
+  alter column username set not null;
+
+drop index if exists profiles_username_idx;
+create unique index profiles_username_idx on public.profiles (username);
+
+alter table public.profiles
+  drop constraint if exists profiles_username_format;
+alter table public.profiles
+  add constraint profiles_username_format check (username ~ '^[a-z0-9_]{3,20}$');
+
+-- Kayıt anında da bir username üretilsin diye handle_new_user()'ı
+-- güncelliyoruz — yukarıdaki (satır ~74) tanımın yerini alır, aynı
+-- trigger'a bağlı kalmaya devam eder.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_name text := coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1));
+begin
+  insert into public.profiles (id, name, username)
+  values (new.id, v_name, public.generate_username_from_name(v_name));
+  return new;
+end;
+$$;
+
+-- Biçim/rezerve kelime/haftalık soğuma-süresi (cooldown) kontrolünü tek
+-- bir yerden zorunlu kılar — ister app RPC'siz doğrudan
+-- `.from('profiles').update({ username })` çağırsın, ister ileride
+-- başka bir yol eklensin, hepsi buradan geçer. Aynı username'i tekrar
+-- kaydetmek (NEW = OLD) cooldown'u hiç tetiklemez.
+create or replace function public.enforce_username_change()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  -- Mevcut route'larla çakışmasın diye rezerve edilen kullanıcı adları.
+  v_reserved text[] := array[
+    'admin', 'api', 'settings', 'profile', 'account', 'login', 'logout',
+    'signup', 'discover', 'challenge', 'workshop', 'story', 'terms',
+    'privacy', 'forgot-password', 'reset-password', 'help', 'support',
+    'about', 'null', 'undefined', 'vates'
+  ];
+begin
+  if new.username is distinct from old.username then
+    if new.username !~ '^[a-z0-9_]{3,20}$' then
+      raise exception 'Username must be 3-20 characters: lowercase letters, numbers, and underscores only.';
+    end if;
+
+    if new.username = any(v_reserved) then
+      raise exception 'That username is reserved.';
+    end if;
+
+    if old.username_changed_at is not null
+       and now() - old.username_changed_at < interval '7 days' then
+      raise exception 'You can change your username again on %.',
+        to_char(old.username_changed_at + interval '7 days', 'YYYY-MM-DD');
+    end if;
+
+    new.username_changed_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_username_change on public.profiles;
+create trigger on_username_change
+  before update on public.profiles
+  for each row execute function public.enforce_username_change();

@@ -26,6 +26,7 @@ export default function EditorSidebar(props: {
   });
   const [versionLabel, setVersionLabel] = useState("");
   const [showPublishReview, setShowPublishReview] = useState(false);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   const {
     updateStory,
     togglePublic,
@@ -54,6 +55,15 @@ export default function EditorSidebar(props: {
   function handleAddChapter() {
     const chapter = addChapter(story.id);
     if (chapter) props.onSelectChapter(chapter.id);
+  }
+
+  function toggleNoteExpanded(noteId: string) {
+    setExpandedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId);
+      else next.add(noteId);
+      return next;
+    });
   }
 
   function handleAddCharacter() {
@@ -343,6 +353,20 @@ export default function EditorSidebar(props: {
                     className="flex-1 min-w-0 bg-transparent font-serif text-sm outline-none border-b border-transparent focus:border-lamp/40 transition-colors"
                   />
                   <button
+                    onClick={() => toggleNoteExpanded(n.id)}
+                    className="text-faint hover:text-lamp transition-colors text-xs mt-0.5"
+                    aria-label={expandedNotes.has(n.id) ? `Collapse note ${n.title}` : `Expand note ${n.title}`}
+                    title={expandedNotes.has(n.id) ? "Collapse" : "Expand"}
+                  >
+                    <motion.span
+                      animate={{ rotate: expandedNotes.has(n.id) ? 180 : 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="inline-block"
+                    >
+                      ⌄
+                    </motion.span>
+                  </button>
+                  <button
                     onClick={() => removeNote(story.id, n.id)}
                     className="text-faint hover:text-crimson transition-colors text-xs mt-0.5"
                     aria-label={`Remove note ${n.title}`}
@@ -354,8 +378,10 @@ export default function EditorSidebar(props: {
                   value={n.content}
                   onChange={(e) => updateNote(story.id, n.id, { content: e.target.value })}
                   placeholder="Worldbuilding, plot threads, things to remember..."
-                  rows={4}
-                  className="w-full bg-ink rounded-md px-2.5 py-2 text-xs leading-relaxed outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint resize-y custom-scrollbar min-h-[6rem] max-h-[60vh]"
+                  rows={expandedNotes.has(n.id) ? 14 : 4}
+                  className={`w-full bg-ink rounded-md px-2.5 py-2 text-xs leading-relaxed outline-none border border-parchment/10 focus:border-lamp/40 transition-all duration-150 placeholder:text-faint resize-y custom-scrollbar ${
+                    expandedNotes.has(n.id) ? "min-h-[20rem] max-h-[75vh]" : "min-h-[6rem] max-h-[60vh]"
+                  }`}
                 />
               </motion.div>
             ))}

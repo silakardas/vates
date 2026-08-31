@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useStories } from "@/lib/StoryContext";
 import Header from "@/components/Header";
+import StoryMapAmbience from "@/components/StoryMapAmbience";
 
 type Node = {
   id: string;
@@ -187,9 +188,11 @@ export default function StoryMapPage() {
 
           <div
             ref={canvasRef}
-            className="relative flex-1 mx-5 mb-5 sm:mx-8 sm:mb-8 rounded-xl border border-parchment/10 bg-ink-soft overflow-auto"
+            className="relative flex-1 mx-5 mb-5 sm:mx-8 sm:mb-8 rounded-xl border border-parchment/10 bg-ink-soft overflow-auto custom-scrollbar"
             style={{ minHeight: 360 }}
           >
+            <StoryMapAmbience />
+
             {nodes.length === 0 && (
               <p className="absolute inset-0 flex items-center justify-center text-sm text-faint text-center px-8">
                 No characters or events yet. Add one above, then click a
@@ -254,7 +257,7 @@ export default function StoryMapPage() {
           </div>
         </main>
 
-        <aside className="w-full lg:w-80 lg:shrink-0 max-h-[70vh] lg:max-h-none border-t lg:border-t-0 lg:border-l border-parchment/10 px-5 py-6 overflow-y-auto">
+        <aside className="w-full lg:w-80 lg:shrink-0 max-h-[70vh] lg:max-h-none border-t lg:border-t-0 lg:border-l border-parchment/10 px-5 py-6 overflow-y-auto custom-scrollbar">
           {!selectedNode && (
             <p className="text-xs text-faint leading-relaxed">
               Click a character or event to edit it, link it to others, or

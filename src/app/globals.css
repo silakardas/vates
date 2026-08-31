@@ -42,22 +42,40 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--color-parchment);
-  opacity: 0.15;
+  background-color: rgba(237, 230, 214, 0.16);
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.15s ease;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-lamp);
+  background-color: rgba(232, 163, 61, 0.55);
+}
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
 }
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(237, 230, 214, 0.2) transparent;
+  scrollbar-color: rgba(237, 230, 214, 0.16) transparent;
+}
+
+/* Textareas that allow vertical resizing (e.g. the notes boxes) get a
+   resize handle that matches the app's theme instead of the browser's
+   default grey grip. */
+textarea.resize-y::-webkit-resizer {
+  background: transparent;
+  border-right: 2px solid var(--color-lamp);
+  border-bottom: 2px solid var(--color-lamp);
+  opacity: 0.45;
+  width: 10px;
+  height: 10px;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {

@@ -120,6 +120,7 @@ function newStory(): Story {
     events: [],
     connections: [],
     notes: [],
+    pinned: false,
     isPublic: false,
   };
 }
@@ -145,6 +146,7 @@ type StoryRow = TagColumns & {
   updated_at: string;
   is_public: boolean | null;
   published_at: string | null;
+  is_pinned: boolean | null;
 };
 
 function rowToStory(row: StoryRow): Story {
@@ -163,6 +165,7 @@ function rowToStory(row: StoryRow): Story {
     events: row.events ?? [],
     connections: row.connections ?? [],
     notes: parseNotes(row.notes),
+    pinned: row.is_pinned ?? false,
     isPublic: row.is_public ?? false,
     publishedAt: row.published_at ? new Date(row.published_at).getTime() : undefined,
   };
@@ -190,6 +193,7 @@ function storyToRow(story: Story, ownerId: string) {
     updated_at: new Date(story.updatedAt).toISOString(),
     is_public: story.isPublic,
     published_at: story.publishedAt ? new Date(story.publishedAt).toISOString() : null,
+    is_pinned: story.pinned ?? false,
     // Intentionally not writing `tags` (the legacy column) — it's left as
     // whatever it was, and rowToStory merges it into additionalTags on
     // every load, so nothing is lost even though this write path no
@@ -212,6 +216,7 @@ type StoryContextType = {
   createStory: () => Story;
   updateStory: (id: string, updates: Partial<Story>) => void;
   togglePublic: (storyId: string) => void;
+  togglePin: (storyId: string) => void;
   addChapter: (storyId: string) => Chapter | undefined;
   updateChapter: (storyId: string, chapterId: string, updates: Partial<Chapter>) => void;
   addTag: (storyId: string, category: TagCategory, value: string) => void;
@@ -354,6 +359,20 @@ export function StoryProvider({ children }: { children: ReactNode }) {
           publishedAt: nextIsPublic ? Date.now() : s.publishedAt,
           updatedAt: Date.now(),
         };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  // Pinning is a shelf/organizing action, not an edit — it deliberately
+  // does not bump updatedAt, so it never disturbs "last edited" or the
+  // Continue-card story.
+  function togglePin(storyId: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        const next = { ...s, pinned: !s.pinned };
         persist(next);
         return next;
       })
@@ -769,6 +788,7 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         createStory,
         updateStory,
         togglePublic,
+        togglePin,
         addChapter,
         updateChapter,
         addTag,

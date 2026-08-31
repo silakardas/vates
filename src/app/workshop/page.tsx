@@ -30,15 +30,25 @@ const rowFade = {
 
 export default function Workshop() {
   const router = useRouter();
-  const { stories, createStory } = useStories();
+  const { stories, createStory, togglePin } = useStories();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
   const sorted = [...stories].sort((a, b) => b.updatedAt - a.updatedAt);
   const [latest, ...rest] = sorted;
 
+  // Pinned stories float to the top of the list, most-recently-edited
+  // first within each group; the Continue card above is unaffected, since
+  // it's about resuming work, not organizing the list.
+  const pinnedSorted = [...rest].sort((a, b) => {
+    const pinDiff = Number(!!b.pinned) - Number(!!a.pinned);
+    return pinDiff !== 0 ? pinDiff : b.updatedAt - a.updatedAt;
+  });
+
   const q = query.trim().toLowerCase();
-  const filtered = q ? rest.filter((s) => s.title.toLowerCase().includes(q)) : rest;
+  const filtered = q
+    ? pinnedSorted.filter((s) => s.title.toLowerCase().includes(q))
+    : pinnedSorted;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -122,6 +132,8 @@ export default function Workshop() {
                     tags={story.tags}
                     status={story.status}
                     updatedAt={story.updatedAt}
+                    pinned={!!story.pinned}
+                    onTogglePin={() => togglePin(story.id)}
                   />
                 </motion.div>
               ))}

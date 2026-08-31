@@ -471,3 +471,9 @@ create policy "profiles are readable by authenticated users"
   on public.profiles for select
   to authenticated
   using (true);
+
+-- Workshop listesinde bir hikayeyi başa sabitleyebilmek (pin) için.
+-- Bilerek updated_at'i etkilemiyor: pinleme bir "düzenleme" değil, sadece
+-- listedeki sırayı değiştiren bir organizasyon eylemi.
+alter table public.stories
+  add column if not exists is_pinned boolean not null default false;

@@ -795,7 +795,7 @@ export default function Editor(props: {
       </div>
 
       <div
-        className="px-4 py-6 sm:px-8 sm:py-9 lg:px-12 lg:py-11 relative flex-1 overflow-y-auto touch-manipulation"
+        className="px-4 py-6 sm:px-8 sm:py-9 lg:px-12 lg:py-11 relative flex-1 overflow-y-auto touch-manipulation custom-scrollbar"
         onDoubleClick={handleDoubleClick}
         onClick={handleClick}
         onTouchEnd={handleTouchEnd}

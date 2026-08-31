@@ -102,7 +102,7 @@ export default function EditorSidebar(props: {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
         {tab === "Details" && (
           <div className="space-y-6">
             <div>
@@ -345,7 +345,7 @@ export default function EditorSidebar(props: {
                   onChange={(e) => updateNote(story.id, n.id, { content: e.target.value })}
                   placeholder="Worldbuilding, plot threads, things to remember..."
                   rows={4}
-                  className="w-full bg-ink rounded-md px-2.5 py-2 text-xs leading-relaxed outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint resize-none custom-scrollbar"
+                  className="w-full bg-ink rounded-md px-2.5 py-2 text-xs leading-relaxed outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint resize-y custom-scrollbar min-h-[6rem] max-h-[60vh]"
                 />
               </motion.div>
             ))}

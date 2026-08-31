@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
 import SearchBar from "@/components/SearchBar";
 
-export default function Header() {
+export default function Header({ showSearch = true }: { showSearch?: boolean } = {}) {
   const { user } = useAuth();
   const { openSettings } = useSettingsModal();
   const [open, setOpen] = useState(false);
@@ -244,8 +244,10 @@ export default function Header() {
     </nav>
     {/* Right below the nav row, so it appears on every page that renders
         <Header /> — this is what replaced the homepage-only
-        DiscoverSection: one persistent, site-wide search bar. */}
-    <SearchBar />
+        DiscoverSection: one persistent, site-wide search bar. Pages that
+        need the editor's full vertical space (like the story editor) can
+        opt out via showSearch={false}. */}
+    {showSearch && <SearchBar />}
     </>
   );
 }

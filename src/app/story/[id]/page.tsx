@@ -50,7 +50,7 @@ export default function StoryPage() {
   if (!story) {
     return (
       <>
-        <Header />
+        <Header showSearch={false} />
         <main className="text-parchment px-5 sm:px-8 py-24 text-center">
           <p className="text-muted">This story doesn&apos;t exist (yet).</p>
           <button
@@ -70,7 +70,7 @@ export default function StoryPage() {
 
   return (
     <>
-      <Header />
+      <Header showSearch={false} />
       <div
         className="flex flex-col lg:flex-row lg:h-[calc(100vh-89px)] lg:overflow-hidden"
         style={{ minHeight: "calc(100vh - 89px)" }}

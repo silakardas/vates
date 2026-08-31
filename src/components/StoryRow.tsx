@@ -104,7 +104,7 @@ export default function StoryRow(props: {
           className={`shrink-0 self-start mt-0.5 p-1 -m-1 rounded-md transition-all ${
             props.pinned
               ? "text-lamp opacity-100"
-              : "text-faint opacity-0 group-hover:opacity-100 hover:text-lamp focus-visible:opacity-100"
+              : "text-faint opacity-40 hover:opacity-100 hover:text-lamp focus-visible:opacity-100"
           }`}
         >
           <svg

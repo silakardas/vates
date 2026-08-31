@@ -393,20 +393,29 @@ grant select (id, name, avatar_url, created_at, show_writer_identity)
 -- those two, IS read back from `profiles` directly, since it's not
 -- mirrored into auth metadata — see the username section below.)
 
--- security_invoker = true (Postgres 15+) makes this view enforce RLS
--- using the *caller's* privileges against the base table, not the view
--- owner's — without it, a plain view would silently bypass everything
--- above. The `where show_writer_identity = true` is the actual opt-in
--- gate: a row (and therefore these fields) only ever comes back
--- through this view for writers who turned the toggle on in Settings.
+-- NOTE: this view intentionally does NOT use security_invoker = true.
+-- That setting makes Postgres check column-level privileges against the
+-- *caller's* role for every column the view touches — but bio/favorite_line
+-- are deliberately never granted to anon/authenticated directly (see above),
+-- so with security_invoker on, the view fails to return bio/favorite_line
+-- for literally everyone, including the row's own owner, regardless of
+-- show_writer_identity. (This was tried and is why the toggle looked like
+-- it did nothing — Postgres was rejecting the column access before the
+-- `where` clause ever got evaluated.)
+-- Leaving security_invoker at its default (off) makes the view run with
+-- the *view owner's* privileges instead, which already has full access to
+-- `profiles`. That's safe here because the view exposes a fixed, hardcoded
+-- filter — `where show_writer_identity = true` — not something the caller
+-- can influence, so that filter alone is the real opt-in gate: a row (and
+-- therefore these fields) only ever comes back through this view for
+-- writers who turned the toggle on in Settings.
 -- CREATE OR REPLACE VIEW can only *append* columns in Postgres, never
 -- remove or reorder them — since this view is shrinking from five
 -- columns down to three (favorite_genre/recurring_universe are gone),
 -- it has to be dropped and recreated instead.
 drop view if exists public.profile_writer_identity;
 
-create view public.profile_writer_identity
-with (security_invoker = true) as
+create view public.profile_writer_identity as
 select id, bio, favorite_line
 from public.profiles
 where show_writer_identity = true;

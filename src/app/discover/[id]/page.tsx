@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ReportButton from "@/components/ReportButton";
+import FollowButton from "@/components/FollowButton";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/AuthContext";
 import { relativeTime } from "@/lib/timeAgo";
 import type { Chapter } from "@/lib/types";
 import { TAG_CATEGORIES, TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
+import { getReadingProgress, saveReadingProgress } from "@/lib/readingProgress";
+
+// Same debounce window StoryContext uses for autosaving story edits
+// (PERSIST_DEBOUNCE_MS) — kept as its own constant here rather than
+// importing that one, since it's a coincidence that the numbers match,
+// not a shared contract between the two features.
+const READING_PROGRESS_DEBOUNCE_MS = 1500;
 
 // Row shape for this page's read — a public/owner-visible story, fetched
 // straight from Supabase. Intentionally not the full `Story` type from
@@ -58,6 +66,26 @@ export default function DiscoverStoryPage() {
   const [commentsLoading, setCommentsLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+
+  // Which chapter is currently in view, for the sticky chapter-nav bar
+  // and for reading-progress tracking below. Index into `chapters`
+  // (computed just below), not a chapter id, since "previous"/"next"
+  // are naturally index math.
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+
+  // Hoisted above the loading/notFound early returns (unlike the rest
+  // of this page's derived values) because the effects below need them,
+  // and hooks can't run after a conditional return.
+  const isOwner = story?.owner_id === user?.id;
+  const chapters = story?.chapters ?? [];
+
+  // Latest known scroll position, kept in a ref (not state) so the
+  // debounce timer and the unmount/visibility-change flush always read
+  // the freshest value without needing to be recreated on every scroll
+  // tick.
+  const readingPositionRef = useRef<{ chapterId: string; scrollFraction: number } | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoredRef = useRef(false);
 
   // Load the story once we know who (if anyone) is viewing — that's what
   // decides whether this load should count as a view.
@@ -228,6 +256,127 @@ export default function DiscoverStoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
+  // Tracks which chapter is in view and how far through it the reader
+  // has scrolled, persisting it (debounced) to reading_progress. Reuses
+  // one rAF-throttled scroll listener for both the sticky chapter-nav
+  // bar's "current chapter" and the actual progress save, rather than
+  // two separate listeners — this is the plain scroll+throttle approach
+  // (not IntersectionObserver), matching the debounced-write pattern
+  // StoryContext already uses for autosave (see PERSIST_DEBOUNCE_MS
+  // there / READING_PROGRESS_DEBOUNCE_MS here) rather than introducing a
+  // second, unrelated persistence mechanism.
+  useEffect(() => {
+    if (!story || chapters.length === 0) return;
+    const storyId = story.id;
+
+    function computePosition() {
+      const scrollY = window.scrollY;
+      let index = 0;
+      for (let i = 0; i < chapters.length; i++) {
+        const el = document.getElementById(`chapter-${chapters[i].id}`);
+        if (!el) continue;
+        const top = el.getBoundingClientRect().top + scrollY;
+        if (scrollY >= top - 4) index = i;
+      }
+
+      setCurrentChapterIndex(index);
+
+      // Reading-progress persistence is only meaningful for a signed-in
+      // reader looking at someone else's story — there's no "continue
+      // reading" card for your own drafts (that's what ContinueCard is
+      // for), and an anon visitor has nowhere to save a position to.
+      if (!user || isOwner) return;
+
+      const chapter = chapters[index];
+      const el = document.getElementById(`chapter-${chapter.id}`);
+      let fraction = 0;
+      if (el) {
+        const top = el.getBoundingClientRect().top + scrollY;
+        const height = el.offsetHeight || 1;
+        fraction = Math.max(0, Math.min(1, (scrollY - top) / height));
+      }
+
+      readingPositionRef.current = { chapterId: chapter.id, scrollFraction: fraction };
+
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveReadingProgress(user.id, storyId, chapter.id, fraction);
+      }, READING_PROGRESS_DEBOUNCE_MS);
+    }
+
+    let ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        computePosition();
+        ticking = false;
+      });
+    }
+
+    // Restoring the saved scroll position (see the effect below) fires
+    // its own scroll, which would otherwise immediately get treated as
+    // "new" reading progress and overwrite the very position it just
+    // restored — computePosition() only kicks in for real user scrolling
+    // after that restore has had a chance to run.
+    computePosition();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // Best-effort flush when the tab is hidden/closed, since the
+    // debounce timer might not fire in time otherwise.
+    function flush() {
+      if (!user || isOwner) return;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      const pos = readingPositionRef.current;
+      if (pos) saveReadingProgress(user.id, storyId, pos.chapterId, pos.scrollFraction);
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === "hidden") flush();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      flush();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story?.id, chapters.length, user?.id, isOwner]);
+
+  // Restores the reader's last position once, the first time this story
+  // (and this specific reader) are both known — a short delay lets the
+  // chapter content actually paint first, since scrollIntoView-style
+  // math needs real layout to measure against.
+  useEffect(() => {
+    if (!story || !user || isOwner || chapters.length === 0) return;
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const progress = await getReadingProgress(user.id, story.id);
+      if (cancelled || !progress) return;
+
+      const chapterId = progress.chapterId ?? chapters[chapters.length - 1]?.id;
+      const el = chapterId ? document.getElementById(`chapter-${chapterId}`) : null;
+      if (!el) return;
+
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const height = el.offsetHeight || 1;
+      window.scrollTo({
+        top: top + progress.scrollFraction * height,
+        behavior: "auto",
+      });
+    }, 120);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [story?.id, user?.id, isOwner, chapters.length]);
+
   async function handlePostComment() {
     if (!story || !user) return;
     const body = newComment.trim();
@@ -288,8 +437,6 @@ export default function DiscoverStoryPage() {
     );
   }
 
-  const isOwner = story.owner_id === user?.id;
-  const chapters = story.chapters ?? [];
   const tags = tagColumnsToStoryTags(story);
   const hasAnyTags = TAG_CATEGORIES.some(({ key }) => tags[key].length > 0);
   // Only worth a jump-list once there's more than one chapter to jump
@@ -307,6 +454,22 @@ export default function DiscoverStoryPage() {
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
+  }
+
+  // The page's architecture (every chapter rendered on one page) is
+  // unchanged — these just move the reader between anchors already on
+  // the page, the same way the existing chapter pill-list above does.
+  const hasPrevChapter = currentChapterIndex > 0;
+  const hasNextChapter = currentChapterIndex < chapters.length - 1;
+
+  function goToPrevChapter() {
+    if (!hasPrevChapter) return;
+    scrollToChapter(chapters[currentChapterIndex - 1].id);
+  }
+
+  function goToNextChapter() {
+    if (!hasNextChapter) return;
+    scrollToChapter(chapters[currentChapterIndex + 1].id);
   }
 
   return (
@@ -342,6 +505,7 @@ export default function DiscoverStoryPage() {
           </span>
           {/* Not linked to a profile page yet — that lands in a later phase. */}
           <span className="text-sm text-muted">{author?.username ?? "Unknown author"}</span>
+          {author && !isOwner && <FollowButton authorId={author.id} />}
           <span className="text-faint">·</span>
           <span className="text-xs font-mono text-faint flex items-center gap-1">
             👁 {(story.view_count ?? 0).toLocaleString("en-US")}
@@ -402,6 +566,37 @@ export default function DiscoverStoryPage() {
           </div>
         )}
 
+        {/* Small sticky bar tracking whichever chapter is currently in
+            view (see the scroll-tracking effect above), so a reader deep
+            in chapter 6 doesn't have to scroll back up to the pill list
+            to jump around. Kept deliberately compact — a full title bar
+            here would compete with the page's own title for attention. */}
+        {showChapterNav && (
+          <div className="sticky top-0 z-10 -mx-5 sm:-mx-8 mb-6 bg-ink/95 backdrop-blur border-b border-parchment/10 px-5 sm:px-8 py-2.5 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={goToPrevChapter}
+              disabled={!hasPrevChapter}
+              className="text-xs font-mono text-muted hover:text-lamp disabled:opacity-30 disabled:hover:text-muted transition-colors whitespace-nowrap"
+            >
+              ← Previous
+            </button>
+            <span className="text-xs font-mono text-faint truncate text-center">
+              Ch. {currentChapterIndex + 1}/{chapters.length}
+              {" · "}
+              {chapters[currentChapterIndex]?.title || `Chapter ${currentChapterIndex + 1}`}
+            </span>
+            <button
+              type="button"
+              onClick={goToNextChapter}
+              disabled={!hasNextChapter}
+              className="text-xs font-mono text-muted hover:text-lamp disabled:opacity-30 disabled:hover:text-muted transition-colors whitespace-nowrap"
+            >
+              Next →
+            </button>
+          </div>
+        )}
+
         <div className="bg-parchment text-[#3A3226] rounded-lg px-6 py-8 sm:px-10 sm:py-12">
           {chapters.length === 0 && (
             <p className="text-[#7A6E58] text-sm">This story has no content yet.</p>
@@ -410,7 +605,7 @@ export default function DiscoverStoryPage() {
             <div
               key={chapter.id}
               id={`chapter-${chapter.id}`}
-              className={`scroll-mt-6 ${i > 0 ? "mt-12 pt-8 border-t border-black/10" : ""}`}
+              className={`scroll-mt-16 ${i > 0 ? "mt-12 pt-8 border-t border-black/10" : ""}`}
             >
               {story.type === "series" && (
                 <h2 className="font-serif text-xl mb-4 text-[#3A3226]">
@@ -421,9 +616,30 @@ export default function DiscoverStoryPage() {
                 className="ProseMirror font-serif text-lg leading-loose max-w-[65ch] mx-auto"
                 dangerouslySetInnerHTML={{ __html: chapter.content || "<p></p>" }}
               />
+              {showChapterNav && (
+                <div className="flex items-center justify-between gap-3 mt-8 pt-6 border-t border-black/10 max-w-[65ch] mx-auto">
+                  <button
+                    type="button"
+                    onClick={() => i > 0 && scrollToChapter(chapters[i - 1].id)}
+                    disabled={i === 0}
+                    className="text-sm font-mono text-[#7A6E58] hover:text-[#3A3226] disabled:opacity-0 disabled:pointer-events-none transition-colors"
+                  >
+                    ← Previous chapter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => i < chapters.length - 1 && scrollToChapter(chapters[i + 1].id)}
+                    disabled={i === chapters.length - 1}
+                    className="text-sm font-mono text-[#7A6E58] hover:text-[#3A3226] disabled:opacity-0 disabled:pointer-events-none transition-colors"
+                  >
+                    Next chapter →
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
+
 
         <section className="mt-10">
           <h2 className="font-serif text-xl mb-4">

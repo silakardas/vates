@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import ContinueCard from "@/components/ContinueCard";
+import ContinueReadingCard from "@/components/ContinueReadingCard";
+import FollowingActivity from "@/components/FollowingActivity";
 import StoryRow from "@/components/StoryRow";
 import WorkshopStats from "@/components/WorkshopStats";
 import Footer from "@/components/Footer";
@@ -86,6 +88,14 @@ export default function Workshop() {
             ) : (
               <p className="text-muted">You haven&apos;t written anything yet.</p>
             )}
+
+            {/* Separate card, not a variant of the one above — resuming
+                someone else's story is a different action than resuming
+                your own draft, so it's never conflated with it. Renders
+                nothing at all if there's no saved reading position. */}
+            <div className="mt-6">
+              <ContinueReadingCard />
+            </div>
           </div>
 
           <section>
@@ -161,6 +171,8 @@ export default function Workshop() {
               </div>
             )}
           </section>
+
+          <FollowingActivity />
         </main>
 
         <WorkshopStats stories={stories} query={query} onQueryChange={handleQueryChange} />

@@ -8,7 +8,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PublicStoryCard from "@/components/PublicStoryCard";
 import FriendButton from "@/components/FriendButton";
+import FollowButton from "@/components/FollowButton";
 import { createClient } from "@/lib/supabase/client";
+import { getFollowerCount } from "@/lib/follows";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
@@ -71,6 +73,7 @@ export default function PublicProfilePage() {
   const [stories, setStories] = useState<ProfileStoryRow[]>([]);
   const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
+  const [followerCount, setFollowerCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -123,12 +126,14 @@ export default function PublicProfilePage() {
       .order("published_at", { ascending: false, nullsFirst: false });
     setStories((storyRows as ProfileStoryRow[]) ?? []);
 
-    const [friendList, incomingList] = await Promise.all([
+    const [friendList, incomingList, followers] = await Promise.all([
       listFriends(profileRow.id),
       user?.id === profileRow.id ? listIncomingRequests(profileRow.id) : Promise.resolve([]),
+      getFollowerCount(profileRow.id),
     ]);
     setFriends(friendList);
     setIncoming(incomingList);
+    setFollowerCount(followers);
 
     setLoading(false);
   }, [routeParam, router, user?.id]);
@@ -205,11 +210,20 @@ export default function PublicProfilePage() {
                   Edit profile
                 </button>
               ) : (
-                <FriendButton profileUserId={profile.id} onChange={load} />
+                <div className="flex items-center gap-2">
+                  <FollowButton
+                    authorId={profile.id}
+                    onChange={() => getFollowerCount(profile.id).then(setFollowerCount)}
+                  />
+                  <FriendButton profileUserId={profile.id} onChange={load} />
+                </div>
               )}
             </div>
             <p className="text-faint text-xs font-mono">
               Writing here since {formatJoinDate(profile.created_at)}
+              {" · "}
+              {followerCount.toLocaleString("en-US")}{" "}
+              {followerCount === 1 ? "follower" : "followers"}
             </p>
             {identity?.bio && (
               <p className="text-muted text-sm italic mt-2 max-w-md">&quot;{identity.bio}&quot;</p>

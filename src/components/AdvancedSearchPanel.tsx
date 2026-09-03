@@ -7,6 +7,7 @@ import PublicStoryCard from "@/components/PublicStoryCard";
 import { useAuth } from "@/lib/AuthContext";
 import { TagCategory } from "@/lib/types";
 import { TAG_CATEGORIES, tagColumnsToStoryTags } from "@/lib/tags";
+import { matchesStoryQuery } from "@/lib/search";
 import {
   FriendProfile,
   FriendStatus,
@@ -167,16 +168,12 @@ function StoryFilterTab({
   const max = maxWords.trim() ? Number(maxWords) : null;
   const q = query.toLowerCase();
 
-  // Same matching rules as the old DiscoverSection: title, author name,
-  // fandom, or character — plus the word-count range and selected tags.
+  // Same matching rules as SearchBar's quick dropdown and the /search
+  // page: title, author name, or any of the four tag categories — plus
+  // the word-count range and selected tags.
   const filtered = stories.filter((s) => {
     const tags = storyTags.get(s.id);
-    const matchesQuery =
-      !q ||
-      s.title.toLowerCase().includes(q) ||
-      (authors[s.owner_id]?.username.toLowerCase().includes(q) ?? false) ||
-      (tags?.fandoms.some((t) => t.includes(q)) ?? false) ||
-      (tags?.characters.some((t) => t.includes(q)) ?? false);
+    const matchesQuery = !q || matchesStoryQuery(s, q, authors[s.owner_id]?.username, tags);
     // AND across (and within) categories: every selected tag, in every
     // selected category, must be present on the story.
     const matchesTags = TAG_CATEGORIES.every(({ key }) =>

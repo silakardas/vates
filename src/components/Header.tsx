@@ -54,6 +54,7 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
           <Link href="/challenge" className="hover:text-parchment transition-colors">
             Today&apos;s Challenge
           </Link>
+          {showSearch && <SearchBar compact />}
           {user ? (
             // tabIndex + onBlur on the wrapper lets us close the dropdown
             // when focus leaves it (click-away or tab-out) without a
@@ -201,6 +202,11 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
             className="sm:hidden overflow-hidden"
           >
             <div className="flex flex-col gap-1 pt-5 pb-1 text-sm">
+              {showSearch && (
+                <div className="mb-2 pb-4 border-b border-parchment/10">
+                  <SearchBar />
+                </div>
+              )}
               <Link
                 href="/workshop"
                 onClick={() => setOpen(false)}
@@ -256,12 +262,6 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
         )}
       </AnimatePresence>
     </nav>
-    {/* Right below the nav row, so it appears on every page that renders
-        <Header /> — this is what replaced the homepage-only
-        DiscoverSection: one persistent, site-wide search bar. Pages that
-        don't want it (e.g. a "story not found" screen) opt out via
-        showSearch={false}. */}
-    {showSearch && <SearchBar />}
     </>
   );
 }

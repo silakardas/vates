@@ -1,70 +1,38 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
+import { useRouter } from "next/navigation";
+import { tagColumnsToStoryTags } from "@/lib/tags";
+import { storyMatchScore, type AuthorInfo, type PublicStoryRow } from "@/lib/search";
+import { useSearchStories } from "@/lib/useSearchStories";
 import AdvancedSearchPanel, { SearchTab } from "@/components/AdvancedSearchPanel";
 
-// Row shape for a publicly-shared story, as read straight from Supabase —
-// intentionally not the full `Story` type from StoryContext, since this
-// only needs the fields relevant to browsing, and (unlike StoryContext)
-// fetches everyone's public stories, not just the current user's own.
-// Shared with AdvancedSearchPanel's "Story" tab, which does the heavier
-// word-count/tag filtering over the same rows.
-export type PublicStoryRow = TagColumns & {
-  id: string;
-  owner_id: string;
-  title: string;
-  description: string | null;
-  view_count: number | null;
-  like_count: number | null;
-  word_count: number | null;
-  created_at: string;
-  published_at: string | null;
-};
-
-export type AuthorInfo = { username: string };
+// Re-exported so existing imports (AdvancedSearchPanel, etc.) that pull
+// these types from "@/components/SearchBar" keep working — the types
+// themselves now live in "@/lib/search" alongside the matching logic they
+// describe.
+export type { AuthorInfo, PublicStoryRow };
 
 const DEBOUNCE_MS = 280;
 const MIN_QUERY_LENGTH = 2;
 const QUICK_RESULT_LIMIT = 6;
 
-// Scores how well a story matches a (lowercased) query — title beats
-// author beats fandom/character tag — so the quick dropdown can list its
-// best matches first instead of just filtering. 0 means "no match".
-function storyMatchScore(
-  story: PublicStoryRow,
-  q: string,
-  authorUsername: string | undefined,
-  tags: ReturnType<typeof tagColumnsToStoryTags> | undefined
-): number {
-  if (!q) return 0;
-  if (story.title.toLowerCase().includes(q)) return 3;
-  if (authorUsername?.toLowerCase().includes(q)) return 2;
-  if (tags?.fandoms.some((t) => t.includes(q)) || tags?.characters.some((t) => t.includes(q))) {
-    return 1;
-  }
-  return 0;
-}
-
-// The site-wide search bar. Rendered from Header, so it appears on every
-// page that renders <Header /> — this is what replaced the old
-// DiscoverSection (which only ever lived on the homepage). Default typing
-// searches public stories (title/author/fandom/character), same logic
-// DiscoverSection used to have; "Advanced search" opens a panel with a
-// full story-filter tab and a separate user-search tab.
-export default function SearchBar() {
+// The site-wide search box. Two instances are rendered from Header: a
+// `compact` one embedded in the desktop nav row, and a full-width one
+// inside the mobile hamburger menu. Default typing searches public
+// stories (title/author/fandom/relationship/character/additional tag);
+// "Advanced search" opens a panel with a full story-filter tab and a
+// separate user-search tab; Enter jumps to the full /search results page
+// — this works for anon visitors too, since public story search never
+// required login.
+export default function SearchBar({ compact = false }: { compact?: boolean }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<SearchTab>("story");
   const [dismissed, setDismissed] = useState(false);
-
-  const [stories, setStories] = useState<PublicStoryRow[]>([]);
-  const [authors, setAuthors] = useState<Record<string, AuthorInfo>>({});
-  const [storiesLoading, setStoriesLoading] = useState(false);
-  const storiesRequestedRef = useRef(false);
 
   // Debounce: raw keystrokes settle into `debouncedQuery` after a short
   // pause. Everything below (fetching, filtering, the user search) reacts
@@ -88,72 +56,8 @@ export default function SearchBar() {
   // needed — a real search, or opening the Story tab to browse by its
   // filters — rather than on every page load just because the bar (and
   // therefore this component) is always mounted in the Header.
-  useEffect(() => {
-    const needsStories = activeQuery.length > 0 || (advancedOpen && activeTab === "story");
-    if (!needsStories || storiesRequestedRef.current) return;
-    storiesRequestedRef.current = true;
-
-    let cancelled = false;
-    const supabase = createClient();
-
-    async function load() {
-      setStoriesLoading(true);
-
-      // Same query DiscoverSection used to run: every publicly-shared
-      // story, no owner filter, relying on the "stories are
-      // public-readable" RLS policy. Works for anon visitors too.
-      const { data: storyRows, error: storiesError } = await supabase
-        .from("stories")
-        .select(
-          "id, owner_id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, created_at, published_at"
-        )
-        .eq("is_public", true)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
-
-      if (cancelled) return;
-
-      if (storiesError || !storyRows) {
-        console.error("Failed to load public stories:", storiesError?.message);
-        setStories([]);
-        setAuthors({});
-        setStoriesLoading(false);
-        return;
-      }
-
-      const ownerIds = [...new Set(storyRows.map((s) => s.owner_id))];
-      let authorMap: Record<string, AuthorInfo> = {};
-
-      if (ownerIds.length > 0) {
-        const { data: profileRows, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, username")
-          .in("id", ownerIds);
-
-        if (profilesError) {
-          console.error("Failed to load authors:", profilesError.message);
-        } else {
-          authorMap = Object.fromEntries(
-            (profileRows ?? []).map((p) => [
-              p.id as string,
-              { username: p.username as string },
-            ])
-          );
-        }
-      }
-
-      if (!cancelled) {
-        setStories(storyRows as PublicStoryRow[]);
-        setAuthors(authorMap);
-        setStoriesLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeQuery, advancedOpen, activeTab]);
+  const needsStories = activeQuery.length > 0 || (advancedOpen && activeTab === "story");
+  const { stories, authors, loading: storiesLoading } = useSearchStories(needsStories);
 
   // Quick preview results for the default (non-advanced) dropdown: text
   // match only, ranked by storyMatchScore, newest first as a tie-break.
@@ -184,9 +88,27 @@ export default function SearchBar() {
     setDismissed(false);
   }
 
+  // Enter jumps to the full results page.
+  function goToResultsPage() {
+    const trimmedNow = query.trim();
+    if (!trimmedNow) return;
+    setAdvancedOpen(false);
+    setDismissed(true);
+    router.push(`/search?q=${encodeURIComponent(trimmedNow)}`);
+  }
+
+  // The compact (desktop nav) variant keeps the original "position:
+  // absolute, top: full" overlay behavior, now anchored to the input
+  // itself (right-aligned) instead of a full-width bar under the nav.
+  // The non-compact variant lives inside Header's mobile dropdown, which
+  // animates its height with `overflow-hidden` — an absolutely
+  // positioned overlay there would get clipped, so results/panel just
+  // flow inline in the menu instead.
+  const overlayBase = compact ? "absolute top-full z-30 pt-2" : "relative pt-2";
+
   return (
     <div
-      className="relative px-4 sm:px-8 py-3 border-b border-parchment/10 bg-ink-soft/40"
+      className="relative"
       tabIndex={-1}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -195,15 +117,20 @@ export default function SearchBar() {
         }
       }}
     >
-      <div className="max-w-3xl mx-auto flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex items-center gap-2">
+        <div className="relative">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setDismissed(false)}
-            placeholder="Search stories by title, fandom, character, or author..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter") goToResultsPage();
+            }}
+            placeholder={compact ? "Search…" : "Search stories by title, fandom, character, or author..."}
             aria-label="Search"
-            className="w-full bg-ink-soft rounded-lg pl-9 pr-8 py-2.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+            className={`bg-ink-soft rounded-lg pl-9 pr-8 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint ${
+              compact ? "w-40 lg:w-56 py-2 text-sm" : "w-full py-2.5 text-sm"
+            }`}
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-faint text-sm">⌕</span>
           {query && (
@@ -224,19 +151,21 @@ export default function SearchBar() {
           type="button"
           onClick={() => (advancedOpen ? setAdvancedOpen(false) : openAdvanced(activeTab))}
           aria-expanded={advancedOpen}
-          className={`flex-shrink-0 text-xs font-mono uppercase tracking-wide px-3 py-2.5 rounded-lg border transition-colors whitespace-nowrap ${
+          className={`flex-shrink-0 font-mono uppercase tracking-wide rounded-lg border transition-colors whitespace-nowrap ${
+            compact ? "text-[10px] px-2 py-2" : "text-xs px-3 py-2.5"
+          } ${
             advancedOpen
               ? "bg-lamp/15 border-lamp/40 text-lamp"
               : "border-parchment/10 text-muted hover:text-parchment hover:border-parchment/20"
           }`}
         >
-          Advanced search
+          {compact ? "Advanced" : "Advanced search"}
         </button>
       </div>
 
       {showQuickDropdown && (
-        <div className="absolute left-0 right-0 top-full z-30 px-4 sm:px-8 pt-2">
-          <div className="max-w-3xl mx-auto bg-panel border border-parchment/10 rounded-xl shadow-lg overflow-hidden">
+        <div className={`${overlayBase} ${compact ? "right-0 w-80 sm:w-96" : "left-0 right-0"}`}>
+          <div className="bg-panel border border-parchment/10 rounded-xl shadow-lg overflow-hidden">
             {storiesLoading && quickResultsShown.length === 0 && (
               <p className="text-muted text-sm py-6 text-center">Searching…</p>
             )}
@@ -269,7 +198,7 @@ export default function SearchBar() {
             )}
             {hasMoreResults && (
               <button
-                onClick={() => openAdvanced("story")}
+                onClick={goToResultsPage}
                 className="w-full text-center text-xs font-mono uppercase tracking-wide text-lamp py-2.5 border-t border-parchment/10 hover:bg-lamp/5 transition-colors"
               >
                 See all {quickResults.length} results →
@@ -280,8 +209,8 @@ export default function SearchBar() {
       )}
 
       {advancedOpen && (
-        <div className="absolute left-0 right-0 top-full z-30 px-4 sm:px-8 pt-2">
-          <div className="max-w-3xl mx-auto bg-panel border border-parchment/10 rounded-xl shadow-lg p-4 sm:p-5">
+        <div className={`${overlayBase} ${compact ? "right-0 w-[26rem] max-w-[90vw]" : "left-0 right-0"}`}>
+          <div className="bg-panel border border-parchment/10 rounded-xl shadow-lg p-4 sm:p-5">
             <AdvancedSearchPanel
               query={activeQuery}
               activeTab={activeTab}

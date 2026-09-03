@@ -234,34 +234,34 @@ export default function PublicProfilePage() {
         </motion.div>
 
         <div
-          className={`grid gap-3 sm:gap-4 my-10 max-w-md ${
-            isOwnProfile ? "grid-cols-5" : "grid-cols-4"
+          className={`grid gap-3 sm:gap-4 my-10 w-full ${
+            isOwnProfile ? "max-w-2xl grid-cols-3 sm:grid-cols-5" : "max-w-lg grid-cols-2 sm:grid-cols-4"
           }`}
         >
-          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+          <div className="bg-panel border border-parchment/10 rounded-xl px-3 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{stories.length}</p>
             <p className="text-xs text-muted mt-1">published</p>
           </div>
-          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+          <div className="bg-panel border border-parchment/10 rounded-xl px-3 py-4 text-center">
             <p className="font-mono text-2xl text-lamp">{totalWords.toLocaleString("en-US")}</p>
             <p className="text-xs text-muted mt-1">words</p>
           </div>
           <button
             onClick={() => setFollowModalTab("followers")}
-            className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center hover:border-lamp/30 transition-colors"
+            className="bg-panel border border-parchment/10 rounded-xl px-3 py-4 text-center hover:border-lamp/30 transition-colors"
           >
             <p className="font-mono text-2xl text-lamp">{followerCount}</p>
             <p className="text-xs text-muted mt-1">followers</p>
           </button>
           <button
             onClick={() => setFollowModalTab("following")}
-            className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center hover:border-lamp/30 transition-colors"
+            className="bg-panel border border-parchment/10 rounded-xl px-3 py-4 text-center hover:border-lamp/30 transition-colors"
           >
             <p className="font-mono text-2xl text-lamp">{followingCount}</p>
             <p className="text-xs text-muted mt-1">following</p>
           </button>
           {isOwnProfile && (
-            <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+            <div className="bg-panel border border-parchment/10 rounded-xl px-3 py-4 text-center">
               <p className="font-mono text-2xl text-lamp">{streak || "—"}</p>
               <p className="text-xs text-muted mt-1">day streak</p>
             </div>

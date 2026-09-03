@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import PublicStoryCard from "@/components/PublicStoryCard";
 import { useAuth } from "@/lib/AuthContext";
 import { TagCategory } from "@/lib/types";
-import { TAG_CATEGORIES, tagColumnsToStoryTags } from "@/lib/tags";
+import { TAG_CATEGORIES, flattenStoryTags, tagColumnsToStoryTags } from "@/lib/tags";
 import { matchesStoryQuery } from "@/lib/search";
 import {
   FriendProfile,
@@ -118,6 +118,15 @@ function StoryFilterTab({
     characters: [],
     additionalTags: [],
   });
+  // Free-text include/exclude tags the user types in themselves, rather
+  // than picking from the popular-tag chip lists below — lets someone
+  // filter by a tag that isn't (yet) common enough to show up there.
+  // Not tied to a category: matched against a story's full flattened tag
+  // list, case-insensitively.
+  const [includeTagInput, setIncludeTagInput] = useState("");
+  const [excludeTagInput, setExcludeTagInput] = useState("");
+  const [customIncludeTags, setCustomIncludeTags] = useState<string[]>([]);
+  const [customExcludeTags, setCustomExcludeTags] = useState<string[]>([]);
 
   const storyTags = useMemo(() => {
     const map = new Map<string, ReturnType<typeof tagColumnsToStoryTags>>();
@@ -164,6 +173,20 @@ function StoryFilterTab({
     0
   );
 
+  // Adds a trimmed, deduplicated (case-insensitive) custom tag to either
+  // list, ignoring blanks and repeats.
+  function addCustomTag(list: "include" | "exclude", raw: string) {
+    const tag = raw.trim();
+    if (!tag) return;
+    const setter = list === "include" ? setCustomIncludeTags : setCustomExcludeTags;
+    setter((prev) => (prev.some((t) => t.toLowerCase() === tag.toLowerCase()) ? prev : [...prev, tag]));
+  }
+
+  function removeCustomTag(list: "include" | "exclude", tag: string) {
+    const setter = list === "include" ? setCustomIncludeTags : setCustomExcludeTags;
+    setter((prev) => prev.filter((t) => t !== tag));
+  }
+
   const min = minWords.trim() ? Number(minWords) : null;
   const max = maxWords.trim() ? Number(maxWords) : null;
   const q = query.toLowerCase();
@@ -184,9 +207,24 @@ function StoryFilterTab({
     const matchesTags = TAG_CATEGORIES.every(({ key }) =>
       selectedTags[key].every((t) => tags?.[key].includes(t) ?? false)
     );
+
+    // User-typed tags aren't scoped to a category, so they're checked
+    // against the story's full flattened tag list instead — every custom
+    // "include" tag must appear somewhere, and no custom "exclude" tag
+    // may appear anywhere, both case-insensitively.
+    const flatTags = (tags ? flattenStoryTags(tags) : []).map((t) => t.toLowerCase());
+    const matchesCustomInclude = customIncludeTags.every((t) => flatTags.includes(t.toLowerCase()));
+    const matchesCustomExclude = customExcludeTags.every((t) => !flatTags.includes(t.toLowerCase()));
+
     const wordCount = s.word_count ?? 0;
     const matchesWordCount = (min === null || wordCount >= min) && (max === null || wordCount <= max);
-    return matchesQuery && matchesTags && matchesWordCount;
+    return (
+      matchesQuery &&
+      matchesTags &&
+      matchesCustomInclude &&
+      matchesCustomExclude &&
+      matchesWordCount
+    );
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -245,6 +283,29 @@ function StoryFilterTab({
         </div>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+        <CustomTagBox
+          label="Include tags"
+          hint="Only show stories tagged with these."
+          placeholder="Add a tag to include..."
+          value={includeTagInput}
+          onValueChange={setIncludeTagInput}
+          tags={customIncludeTags}
+          onAdd={(tag) => addCustomTag("include", tag)}
+          onRemove={(tag) => removeCustomTag("include", tag)}
+        />
+        <CustomTagBox
+          label="Exclude tags"
+          hint="Hide stories tagged with these."
+          placeholder="Add a tag to exclude..."
+          value={excludeTagInput}
+          onValueChange={setExcludeTagInput}
+          tags={customExcludeTags}
+          onAdd={(tag) => addCustomTag("exclude", tag)}
+          onRemove={(tag) => removeCustomTag("exclude", tag)}
+        />
+      </div>
+
       {TAG_CATEGORIES.some(({ key }) => tagsByCategory[key].length > 0) && (
         <div className="mb-5 space-y-3">
           {TAG_CATEGORIES.map(({ key, label }) => {
@@ -294,6 +355,20 @@ function StoryFilterTab({
         </div>
       )}
 
+      {(customIncludeTags.length > 0 || customExcludeTags.length > 0) && (
+        <div className="mb-5">
+          <button
+            onClick={() => {
+              setCustomIncludeTags([]);
+              setCustomExcludeTags([]);
+            }}
+            className="text-xs font-mono px-2.5 py-1 text-faint hover:text-crimson transition-colors"
+          >
+            Clear custom tags
+          </button>
+        </div>
+      )}
+
       {!hasQuery && (
         <p className="text-muted text-sm py-8 text-center">
           Start typing to search stories…
@@ -310,7 +385,7 @@ function StoryFilterTab({
 
       {hasQuery && !loading && sorted.length > 0 && (
         <motion.div
-          key={`${query}-${sortBy}-${minWords}-${maxWords}-${TAG_CATEGORIES.map(({ key }) => selectedTags[key].join(",")).join("|")}`}
+          key={`${query}-${sortBy}-${minWords}-${maxWords}-${TAG_CATEGORIES.map(({ key }) => selectedTags[key].join(",")).join("|")}-${customIncludeTags.join(",")}-${customExcludeTags.join(",")}`}
           initial="hidden"
           animate="show"
           variants={stagger}
@@ -332,6 +407,86 @@ function StoryFilterTab({
             </motion.div>
           ))}
         </motion.div>
+      )}
+    </div>
+  );
+}
+
+// A labeled free-text tag input with an "Add" button/Enter-to-add, plus
+// the currently added tags rendered as removable chips underneath. Used
+// twice in StoryFilterTab — once for user-typed "include" tags, once for
+// "exclude" — so someone can filter by a tag that isn't (or isn't yet)
+// popular enough to show up in the category chip lists above.
+function CustomTagBox({
+  label,
+  hint,
+  placeholder,
+  value,
+  onValueChange,
+  tags,
+  onAdd,
+  onRemove,
+}: {
+  label: string;
+  hint: string;
+  placeholder: string;
+  value: string;
+  onValueChange: (v: string) => void;
+  tags: string[];
+  onAdd: (tag: string) => void;
+  onRemove: (tag: string) => void;
+}) {
+  function submit() {
+    onAdd(value);
+    onValueChange("");
+  }
+
+  return (
+    <div>
+      <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-1.5" title={hint}>
+        {label}
+      </label>
+      <div className="flex gap-1.5">
+        <input
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-ink-soft rounded-lg px-3 py-2 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!value.trim()}
+          className="flex-shrink-0 font-mono text-xs uppercase tracking-wide px-3 py-2 rounded-lg border border-parchment/10 text-muted hover:text-parchment hover:border-parchment/20 transition-colors disabled:opacity-40 disabled:hover:text-muted disabled:hover:border-parchment/10"
+        >
+          Add
+        </button>
+      </div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-lamp/15 border border-lamp/40 text-lamp"
+            >
+              #{tag}
+              <button
+                type="button"
+                onClick={() => onRemove(tag)}
+                aria-label={`Remove ${tag}`}
+                className="text-lamp/70 hover:text-crimson transition-colors"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );

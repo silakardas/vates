@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
-a
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);

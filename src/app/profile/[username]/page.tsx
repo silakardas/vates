@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PublicStoryCard from "@/components/PublicStoryCard";
 import FollowButton from "@/components/FollowButton";
+import FollowListModal, { FollowListTab } from "@/components/FollowListModal";
 import { createClient } from "@/lib/supabase/client";
 import {
   FollowProfile,
@@ -75,6 +76,7 @@ export default function PublicProfilePage() {
   const [followingCount, setFollowingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<FollowListTab | null>(null);
 
   const isOwnProfile = !!profile && user?.id === profile.id;
 
@@ -217,8 +219,13 @@ export default function PublicProfilePage() {
             <p className="text-faint text-xs font-mono">
               Writing here since {formatJoinDate(profile.created_at)}
               {" · "}
-              {followerCount.toLocaleString("en-US")}{" "}
-              {followerCount === 1 ? "follower" : "followers"}
+              <button
+                onClick={() => setFollowModalTab("followers")}
+                className="hover:text-lamp transition-colors"
+              >
+                {followerCount.toLocaleString("en-US")}{" "}
+                {followerCount === 1 ? "follower" : "followers"}
+              </button>
             </p>
             {identity?.bio && (
               <p className="text-muted text-sm italic mt-2 max-w-md">&quot;{identity.bio}&quot;</p>
@@ -239,14 +246,20 @@ export default function PublicProfilePage() {
             <p className="font-mono text-2xl text-lamp">{totalWords.toLocaleString("en-US")}</p>
             <p className="text-xs text-muted mt-1">words</p>
           </div>
-          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+          <button
+            onClick={() => setFollowModalTab("followers")}
+            className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center hover:border-lamp/30 transition-colors"
+          >
             <p className="font-mono text-2xl text-lamp">{followerCount}</p>
             <p className="text-xs text-muted mt-1">followers</p>
-          </div>
-          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+          </button>
+          <button
+            onClick={() => setFollowModalTab("following")}
+            className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center hover:border-lamp/30 transition-colors"
+          >
             <p className="font-mono text-2xl text-lamp">{followingCount}</p>
             <p className="text-xs text-muted mt-1">following</p>
-          </div>
+          </button>
           {isOwnProfile && (
             <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
               <p className="font-mono text-2xl text-lamp">{streak || "—"}</p>
@@ -287,60 +300,6 @@ export default function PublicProfilePage() {
           )
         )}
 
-        {followers.length > 0 && (
-          <div className="mb-12">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-              Followers
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {followers.map((f) => (
-                <Link
-                  key={f.id}
-                  href={`/profile/${f.username}`}
-                  className="flex items-center gap-2 bg-panel border border-parchment/10 rounded-full pl-1.5 pr-3.5 py-1.5 hover:border-lamp/30 transition-colors"
-                >
-                  <span className="w-7 h-7 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-[10px] font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {f.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover" />
-                    ) : (
-                      f.username.charAt(0).toUpperCase()
-                    )}
-                  </span>
-                  <span className="text-xs text-muted">{f.username}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {following.length > 0 && (
-          <div className="mb-12">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-              Following
-            </p>
-            <div className="flex flex-wrap gap-3">
-              {following.map((f) => (
-                <Link
-                  key={f.id}
-                  href={`/profile/${f.username}`}
-                  className="flex items-center gap-2 bg-panel border border-parchment/10 rounded-full pl-1.5 pr-3.5 py-1.5 hover:border-lamp/30 transition-colors"
-                >
-                  <span className="w-7 h-7 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-[10px] font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {f.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover" />
-                    ) : (
-                      f.username.charAt(0).toUpperCase()
-                    )}
-                  </span>
-                  <span className="text-xs text-muted">{f.username}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div>
           <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
             Published stories
@@ -370,6 +329,15 @@ export default function PublicProfilePage() {
           )}
         </div>
       </main>
+      {followModalTab && (
+        <FollowListModal
+          tab={followModalTab}
+          onTabChange={setFollowModalTab}
+          followers={followers}
+          following={following}
+          onClose={() => setFollowModalTab(null)}
+        />
+      )}
       <Footer />
     </>
   );

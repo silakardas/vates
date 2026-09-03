@@ -4,21 +4,38 @@ import { useState } from "react";
 import { TagCategory } from "@/lib/types";
 import { TAG_CATEGORIES } from "@/lib/tags";
 import { SORT_OPTIONS, SortOption, TagSelection } from "@/lib/search";
+import { STATUS_CONFIG, StoryStatus } from "@/lib/storyStatus";
 
-// AO3-inspired "Sort and Filter" sidebar, restyled for Vates' theme and
-// scaled down to the fields that actually exist here: no ratings,
-// warnings, categories, crossovers, completion status, or language —
-// just the four tag categories (Include/Exclude), word count, and sort.
-// Filtering is live (no submit button, unlike AO3) since the rest of the
-// site's search already works that way.
+const COMPLETION_OPTIONS: { value: StoryStatus | "any"; label: string }[] = [
+  { value: "any", label: "Any status" },
+  ...(Object.entries(STATUS_CONFIG) as [StoryStatus, { label: string }][]).map(([value, cfg]) => ({
+    value,
+    label: cfg.label,
+  })),
+];
+
+// AO3-inspired "Sort and Filter" sidebar, restyled for Vates' theme:
+// sort order, a completion status filter, the four tag categories
+// (Include/Exclude — both pickable from popular values and free-text
+// custom tags), and a word-count range. Filtering is live (no submit
+// button, unlike AO3) since the rest of the site's search already works
+// that way.
 export default function SearchFilters({
   sortBy,
   onSortChange,
+  completionStatus,
+  onCompletionStatusChange,
   tagsByCategory,
   includeTags,
   excludeTags,
   onToggleInclude,
   onToggleExclude,
+  customIncludeTags,
+  customExcludeTags,
+  onAddCustomInclude,
+  onRemoveCustomInclude,
+  onAddCustomExclude,
+  onRemoveCustomExclude,
   minWords,
   maxWords,
   onMinWordsChange,
@@ -28,11 +45,19 @@ export default function SearchFilters({
 }: {
   sortBy: SortOption;
   onSortChange: (v: SortOption) => void;
+  completionStatus: StoryStatus | "any";
+  onCompletionStatusChange: (v: StoryStatus | "any") => void;
   tagsByCategory: Record<TagCategory, string[]>;
   includeTags: TagSelection;
   excludeTags: TagSelection;
   onToggleInclude: (category: TagCategory, tag: string) => void;
   onToggleExclude: (category: TagCategory, tag: string) => void;
+  customIncludeTags: string[];
+  customExcludeTags: string[];
+  onAddCustomInclude: (tag: string) => void;
+  onRemoveCustomInclude: (tag: string) => void;
+  onAddCustomExclude: (tag: string) => void;
+  onRemoveCustomExclude: (tag: string) => void;
   minWords: string;
   maxWords: string;
   onMinWordsChange: (v: string) => void;
@@ -63,6 +88,23 @@ export default function SearchFilters({
         </select>
       </div>
 
+      <div className="mb-5">
+        <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-1.5">
+          Completion status
+        </label>
+        <select
+          value={completionStatus}
+          onChange={(e) => onCompletionStatusChange(e.target.value as StoryStatus | "any")}
+          className="w-full bg-ink rounded-lg px-3 py-2 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors"
+        >
+          {COMPLETION_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <TagSection
         title="Include"
         titleHint="Only show stories tagged with the selected values."
@@ -70,6 +112,10 @@ export default function SearchFilters({
         selected={includeTags}
         onToggle={onToggleInclude}
         idPrefix="include"
+        customTags={customIncludeTags}
+        onAddCustomTag={onAddCustomInclude}
+        onRemoveCustomTag={onRemoveCustomInclude}
+        customPlaceholder="Add a tag to include..."
       />
 
       <TagSection
@@ -79,6 +125,10 @@ export default function SearchFilters({
         selected={excludeTags}
         onToggle={onToggleExclude}
         idPrefix="exclude"
+        customTags={customExcludeTags}
+        onAddCustomTag={onAddCustomExclude}
+        onRemoveCustomTag={onRemoveCustomExclude}
+        customPlaceholder="Add a tag to exclude..."
       />
 
       <CollapsibleBox title="Word Count" defaultOpen={minWords !== "" || maxWords !== ""}>
@@ -127,6 +177,9 @@ export default function SearchFilters({
 // A titled group of collapsible per-category boxes (Fandoms,
 // Relationships, Characters, Additional Tags) — used once for "Include"
 // and once for "Exclude" with a different `selected`/`onToggle` pair.
+// Also renders a free-text box above those categories so a value that
+// isn't (yet) popular enough to appear as a chip can still be typed in
+// directly.
 function TagSection({
   title,
   titleHint,
@@ -134,6 +187,10 @@ function TagSection({
   selected,
   onToggle,
   idPrefix,
+  customTags,
+  onAddCustomTag,
+  onRemoveCustomTag,
+  customPlaceholder,
 }: {
   title: string;
   titleHint: string;
@@ -141,9 +198,12 @@ function TagSection({
   selected: TagSelection;
   onToggle: (category: TagCategory, tag: string) => void;
   idPrefix: string;
+  customTags: string[];
+  onAddCustomTag: (tag: string) => void;
+  onRemoveCustomTag: (tag: string) => void;
+  customPlaceholder: string;
 }) {
   const hasAnyOptions = TAG_CATEGORIES.some(({ key }) => tagsByCategory[key].length > 0);
-  if (!hasAnyOptions) return null;
 
   return (
     <div className="mb-5">
@@ -153,44 +213,125 @@ function TagSection({
       >
         {title}
       </p>
-      <div className="space-y-1.5">
-        {TAG_CATEGORIES.map(({ key, label }) => {
-          const options = tagsByCategory[key];
-          if (options.length === 0) return null;
-          const selectedCount = selected[key].length;
-          return (
-            <CollapsibleBox
-              key={key}
-              title={label}
-              badge={selectedCount > 0 ? selectedCount : undefined}
-              defaultOpen={selectedCount > 0}
-            >
-              <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1 space-y-1">
-                {options.map((tag) => {
-                  const checkboxId = `${idPrefix}-${key}-${tag}`;
-                  const checked = selected[key].includes(tag);
-                  return (
-                    <label
-                      key={tag}
-                      htmlFor={checkboxId}
-                      className="flex items-center gap-2 text-sm text-muted hover:text-parchment transition-colors cursor-pointer py-0.5"
-                    >
-                      <input
-                        id={checkboxId}
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => onToggle(key, tag)}
-                        className="accent-lamp"
-                      />
-                      <span className="truncate">#{tag}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </CollapsibleBox>
-          );
-        })}
+
+      <CustomTagInput
+        placeholder={customPlaceholder}
+        tags={customTags}
+        onAdd={onAddCustomTag}
+        onRemove={onRemoveCustomTag}
+      />
+
+      {hasAnyOptions && (
+        <div className="space-y-1.5 mt-2">
+          {TAG_CATEGORIES.map(({ key, label }) => {
+            const options = tagsByCategory[key];
+            if (options.length === 0) return null;
+            const selectedCount = selected[key].length;
+            return (
+              <CollapsibleBox
+                key={key}
+                title={label}
+                badge={selectedCount > 0 ? selectedCount : undefined}
+                defaultOpen={selectedCount > 0}
+              >
+                <div className="max-h-40 overflow-y-auto custom-scrollbar pr-1 space-y-1">
+                  {options.map((tag) => {
+                    const checkboxId = `${idPrefix}-${key}-${tag}`;
+                    const checked = selected[key].includes(tag);
+                    return (
+                      <label
+                        key={tag}
+                        htmlFor={checkboxId}
+                        className="flex items-center gap-2 text-sm text-muted hover:text-parchment transition-colors cursor-pointer py-0.5"
+                      >
+                        <input
+                          id={checkboxId}
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => onToggle(key, tag)}
+                          className="accent-lamp"
+                        />
+                        <span className="truncate">#{tag}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </CollapsibleBox>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A free-text tag input with an "Add" button/Enter-to-add, plus the
+// currently added tags rendered as removable chips underneath. Lets the
+// user filter by a tag of their own choosing rather than only the
+// popular values that show up as checkboxes above.
+function CustomTagInput({
+  placeholder,
+  tags,
+  onAdd,
+  onRemove,
+}: {
+  placeholder: string;
+  tags: string[];
+  onAdd: (tag: string) => void;
+  onRemove: (tag: string) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  function submit() {
+    if (!value.trim()) return;
+    onAdd(value);
+    setValue("");
+  }
+
+  return (
+    <div>
+      <div className="flex gap-1.5">
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-ink rounded-lg px-3 py-2 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!value.trim()}
+          className="flex-shrink-0 font-mono text-xs uppercase tracking-wide px-3 py-2 rounded-lg border border-parchment/10 text-muted hover:text-parchment hover:border-parchment/20 transition-colors disabled:opacity-40 disabled:hover:text-muted disabled:hover:border-parchment/10"
+        >
+          Add
+        </button>
       </div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-lamp/15 border border-lamp/40 text-lamp"
+            >
+              #{tag}
+              <button
+                type="button"
+                onClick={() => onRemove(tag)}
+                aria-label={`Remove ${tag}`}
+                className="text-lamp/70 hover:text-crimson transition-colors"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import PublicStoryCard from "@/components/PublicStoryCard";
 import SearchFilters from "@/components/SearchFilters";
 import { tagColumnsToStoryTags } from "@/lib/tags";
 import { TagCategory } from "@/lib/types";
+import { StoryStatus } from "@/lib/storyStatus";
 import {
   computeTagsByCategory,
   emptyTagSelection,
@@ -22,9 +23,10 @@ import { useSearchStories } from "@/lib/useSearchStories";
 // box's "Enter" and "See all N results →" land. Lists every public story
 // matching the query (title/author/any tag category), refined by the
 // AO3-inspired "Sort and Filter" sidebar (SearchFilters): sort order,
-// include/exclude tags per category, and a word-count range. Filtering
-// is live — no submit button, unlike AO3 — since the rest of the site's
-// search already works that way.
+// completion status, include/exclude tags per category plus free-text
+// custom tags, and a word-count range. Filtering is live — no submit
+// button, unlike AO3 — since the rest of the site's search already works
+// that way.
 function SearchResults() {
   const searchParams = useSearchParams();
   const rawQuery = searchParams.get("q") ?? "";
@@ -34,8 +36,14 @@ function SearchResults() {
   const { stories, authors, loading } = useSearchStories(true);
 
   const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [completionStatus, setCompletionStatus] = useState<StoryStatus | "any">("any");
   const [includeTags, setIncludeTags] = useState<TagSelection>(emptyTagSelection());
   const [excludeTags, setExcludeTags] = useState<TagSelection>(emptyTagSelection());
+  // Free-text tags the user types in themselves rather than picking from
+  // the popular-tag checkboxes — not scoped to a category, matched
+  // against a story's full flattened tag list (see filterStories).
+  const [customIncludeTags, setCustomIncludeTags] = useState<string[]>([]);
+  const [customExcludeTags, setCustomExcludeTags] = useState<string[]>([]);
   const [minWords, setMinWords] = useState("");
   const [maxWords, setMaxWords] = useState("");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -63,11 +71,27 @@ function SearchResults() {
       requireQuery: true,
       includeTags,
       excludeTags,
+      customIncludeTags,
+      customExcludeTags,
+      completionStatus,
       minWords: min,
       maxWords: max,
     });
     return sortStories(filtered, sortBy);
-  }, [stories, storyTags, authors, q, includeTags, excludeTags, min, max, sortBy]);
+  }, [
+    stories,
+    storyTags,
+    authors,
+    q,
+    includeTags,
+    excludeTags,
+    customIncludeTags,
+    customExcludeTags,
+    completionStatus,
+    min,
+    max,
+    sortBy,
+  ]);
 
   function toggleInclude(category: TagCategory, tag: string) {
     setIncludeTags((prev) => ({
@@ -87,20 +111,40 @@ function SearchResults() {
     }));
   }
 
+  // Adds a trimmed, deduplicated (case-insensitive) custom tag to either
+  // list, ignoring blanks and repeats.
+  function addCustomTag(list: "include" | "exclude", raw: string) {
+    const tag = raw.trim();
+    if (!tag) return;
+    const setter = list === "include" ? setCustomIncludeTags : setCustomExcludeTags;
+    setter((prev) => (prev.some((t) => t.toLowerCase() === tag.toLowerCase()) ? prev : [...prev, tag]));
+  }
+
+  function removeCustomTag(list: "include" | "exclude", tag: string) {
+    const setter = list === "include" ? setCustomIncludeTags : setCustomExcludeTags;
+    setter((prev) => prev.filter((t) => t !== tag));
+  }
+
   function clearFilters() {
     setSortBy("newest");
+    setCompletionStatus("any");
     setIncludeTags(emptyTagSelection());
     setExcludeTags(emptyTagSelection());
+    setCustomIncludeTags([]);
+    setCustomExcludeTags([]);
     setMinWords("");
     setMaxWords("");
   }
 
   const hasActiveFilters =
     sortBy !== "newest" ||
+    completionStatus !== "any" ||
     minWords !== "" ||
     maxWords !== "" ||
     Object.values(includeTags).some((v) => v.length > 0) ||
-    Object.values(excludeTags).some((v) => v.length > 0);
+    Object.values(excludeTags).some((v) => v.length > 0) ||
+    customIncludeTags.length > 0 ||
+    customExcludeTags.length > 0;
 
   return (
     <>
@@ -134,11 +178,19 @@ function SearchResults() {
                 <SearchFilters
                   sortBy={sortBy}
                   onSortChange={setSortBy}
+                  completionStatus={completionStatus}
+                  onCompletionStatusChange={setCompletionStatus}
                   tagsByCategory={tagsByCategory}
                   includeTags={includeTags}
                   excludeTags={excludeTags}
                   onToggleInclude={toggleInclude}
                   onToggleExclude={toggleExclude}
+                  customIncludeTags={customIncludeTags}
+                  customExcludeTags={customExcludeTags}
+                  onAddCustomInclude={(tag) => addCustomTag("include", tag)}
+                  onRemoveCustomInclude={(tag) => removeCustomTag("include", tag)}
+                  onAddCustomExclude={(tag) => addCustomTag("exclude", tag)}
+                  onRemoveCustomExclude={(tag) => removeCustomTag("exclude", tag)}
                   minWords={minWords}
                   maxWords={maxWords}
                   onMinWordsChange={setMinWords}

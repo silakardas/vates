@@ -1,5 +1,6 @@
-import { TAG_CATEGORIES, TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
+import { TAG_CATEGORIES, TagColumns, flattenStoryTags, tagColumnsToStoryTags } from "@/lib/tags";
 import { StoryTags, TagCategory } from "@/lib/types";
+import { StoryStatus } from "@/lib/storyStatus";
 
 // Row shape for a publicly-shared story, as read straight from Supabase —
 // intentionally not the full `Story` type from StoryContext, since this
@@ -15,6 +16,7 @@ export type PublicStoryRow = TagColumns & {
   view_count: number | null;
   like_count: number | null;
   word_count: number | null;
+  status: StoryStatus;
   created_at: string;
   published_at: string | null;
 };
@@ -108,10 +110,11 @@ export function computeTagsByCategory(
   return result;
 }
 
-// Filters stories by query text, include/exclude tag selections, and a
-// word-count range, in one pass. `requireQuery: true` means an empty
-// query yields zero matches (used everywhere search results are shown,
-// so picking filters alone never renders a grid on its own).
+// Filters stories by query text, include/exclude tag selections
+// (per-category chip picks plus free-text custom tags), a completion
+// status, and a word-count range, in one pass. `requireQuery: true` means
+// an empty query yields zero matches (used everywhere search results are
+// shown, so picking filters alone never renders a grid on its own).
 export function filterStories(options: {
   stories: PublicStoryRow[];
   storyTags: Map<string, StoryTags>;
@@ -120,11 +123,26 @@ export function filterStories(options: {
   requireQuery: boolean;
   includeTags: TagSelection;
   excludeTags: TagSelection;
+  customIncludeTags?: string[];
+  customExcludeTags?: string[];
+  completionStatus?: StoryStatus | "any";
   minWords: number | null;
   maxWords: number | null;
 }): PublicStoryRow[] {
-  const { stories, storyTags, authors, q, requireQuery, includeTags, excludeTags, minWords, maxWords } =
-    options;
+  const {
+    stories,
+    storyTags,
+    authors,
+    q,
+    requireQuery,
+    includeTags,
+    excludeTags,
+    customIncludeTags = [],
+    customExcludeTags = [],
+    completionStatus = "any",
+    minWords,
+    maxWords,
+  } = options;
 
   return stories.filter((s) => {
     const tags = storyTags.get(s.id);
@@ -144,6 +162,16 @@ export function filterStories(options: {
       excludeTags[key].every((t) => !(tags?.[key].includes(t) ?? false))
     );
     if (!matchesExclude) return false;
+
+    // Free-text tags aren't scoped to a category, so they're checked
+    // against the story's full flattened tag list, case-insensitively.
+    if (customIncludeTags.length > 0 || customExcludeTags.length > 0) {
+      const flatTags = (tags ? flattenStoryTags(tags) : []).map((t) => t.toLowerCase());
+      if (!customIncludeTags.every((t) => flatTags.includes(t.toLowerCase()))) return false;
+      if (customExcludeTags.some((t) => flatTags.includes(t.toLowerCase()))) return false;
+    }
+
+    if (completionStatus !== "any" && s.status !== completionStatus) return false;
 
     const wordCount = s.word_count ?? 0;
     if (minWords !== null && wordCount < minWords) return false;

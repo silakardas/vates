@@ -24,7 +24,7 @@ export type PublicStoryRow = TagColumns & {
   published_at: string | null;
 };
 
-export type AuthorInfo = { name: string; username: string };
+export type AuthorInfo = { username: string };
 
 const DEBOUNCE_MS = 280;
 const MIN_QUERY_LENGTH = 2;
@@ -36,12 +36,12 @@ const QUICK_RESULT_LIMIT = 6;
 function storyMatchScore(
   story: PublicStoryRow,
   q: string,
-  authorName: string | undefined,
+  authorUsername: string | undefined,
   tags: ReturnType<typeof tagColumnsToStoryTags> | undefined
 ): number {
   if (!q) return 0;
   if (story.title.toLowerCase().includes(q)) return 3;
-  if (authorName?.toLowerCase().includes(q)) return 2;
+  if (authorUsername?.toLowerCase().includes(q)) return 2;
   if (tags?.fandoms.some((t) => t.includes(q)) || tags?.characters.some((t) => t.includes(q))) {
     return 1;
   }
@@ -127,7 +127,7 @@ export default function SearchBar() {
       if (ownerIds.length > 0) {
         const { data: profileRows, error: profilesError } = await supabase
           .from("profiles")
-          .select("id, name, username")
+          .select("id, username")
           .in("id", ownerIds);
 
         if (profilesError) {
@@ -136,7 +136,7 @@ export default function SearchBar() {
           authorMap = Object.fromEntries(
             (profileRows ?? []).map((p) => [
               p.id as string,
-              { name: p.name as string, username: p.username as string },
+              { username: p.username as string },
             ])
           );
         }
@@ -161,7 +161,7 @@ export default function SearchBar() {
     ? stories
         .map((s) => ({
           story: s,
-          score: storyMatchScore(s, q, authors[s.owner_id]?.name, tagColumnsToStoryTags(s)),
+          score: storyMatchScore(s, q, authors[s.owner_id]?.username, tagColumnsToStoryTags(s)),
         }))
         .filter(({ score }) => score > 0)
         .sort((a, b) => {
@@ -256,7 +256,7 @@ export default function SearchBar() {
                           {story.title}
                         </span>
                         <span className="block text-xs font-mono text-faint truncate">
-                          by {authors[story.owner_id]?.name ?? "Unknown"}
+                          by {authors[story.owner_id]?.username ?? "Unknown"}
                         </span>
                       </span>
                       <span className="text-xs font-mono text-faint flex-shrink-0 whitespace-nowrap pt-0.5">

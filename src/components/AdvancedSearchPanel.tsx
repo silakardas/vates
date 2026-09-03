@@ -174,7 +174,7 @@ function StoryFilterTab({
     const matchesQuery =
       !q ||
       s.title.toLowerCase().includes(q) ||
-      (authors[s.owner_id]?.name.toLowerCase().includes(q) ?? false) ||
+      (authors[s.owner_id]?.username.toLowerCase().includes(q) ?? false) ||
       (tags?.fandoms.some((t) => t.includes(q)) ?? false) ||
       (tags?.characters.some((t) => t.includes(q)) ?? false);
     // AND across (and within) categories: every selected tag, in every
@@ -319,7 +319,6 @@ function StoryFilterTab({
                   viewCount: story.view_count,
                   likeCount: story.like_count,
                 }}
-                authorName={authors[story.owner_id]?.name}
                 authorUsername={authors[story.owner_id]?.username}
               />
             </motion.div>
@@ -423,14 +422,14 @@ function UserSearchTab({ query }: { query: string }) {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={profile.avatarUrl}
-                    alt={profile.name}
+                    alt={profile.username}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  profile.name.charAt(0).toUpperCase()
+                  profile.username.charAt(0).toUpperCase()
                 )}
               </span>
-              <span className="text-sm text-parchment truncate">{profile.name}</span>
+              <span className="text-sm text-parchment truncate">{profile.username}</span>
             </Link>
 
             {!status ? null : status.kind === "none" ? (

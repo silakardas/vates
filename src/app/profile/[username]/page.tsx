@@ -35,7 +35,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 type ProfileRow = {
   id: string;
   username: string;
-  name: string;
   avatar_url: string | null;
   created_at: string;
 };
@@ -88,7 +87,7 @@ export default function PublicProfilePage() {
 
     const { data: profileRow } = await supabase
       .from("profiles")
-      .select("id, username, name, avatar_url, created_at")
+      .select("id, username, avatar_url, created_at")
       .eq(lookupColumn, routeParam)
       .maybeSingle();
 
@@ -190,14 +189,14 @@ export default function PublicProfilePage() {
           <div className="w-24 h-24 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-3xl flex items-center justify-center overflow-hidden flex-shrink-0">
             {profile.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatar_url} alt={profile.name} className="w-full h-full object-cover" />
+              <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
             ) : (
-              profile.name.charAt(0).toUpperCase()
+              profile.username.charAt(0).toUpperCase()
             )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-3 mb-1">
-              <h1 className="font-serif text-2xl text-parchment">{profile.name}</h1>
+              <h1 className="font-serif text-2xl text-parchment">@{profile.username}</h1>
               {isOwnProfile ? (
                 <button
                   onClick={() => openSettings()}
@@ -210,7 +209,7 @@ export default function PublicProfilePage() {
               )}
             </div>
             <p className="text-faint text-xs font-mono">
-              @{profile.username} · Writing here since {formatJoinDate(profile.created_at)}
+              Writing here since {formatJoinDate(profile.created_at)}
             </p>
             {identity?.bio && (
               <p className="text-muted text-sm italic mt-2 max-w-md">&quot;{identity.bio}&quot;</p>
@@ -295,15 +294,15 @@ export default function PublicProfilePage() {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={req.from.avatarUrl}
-                          alt={req.from.name}
+                          alt={req.from.username}
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        req.from.name.charAt(0).toUpperCase()
+                        req.from.username.charAt(0).toUpperCase()
                       )}
                     </span>
                     <span className="text-sm text-parchment truncate group-hover:text-lamp transition-colors">
-                      {req.from.name}
+                      {req.from.username}
                     </span>
                   </Link>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -339,12 +338,12 @@ export default function PublicProfilePage() {
                   <span className="w-7 h-7 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-[10px] font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
                     {f.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={f.avatarUrl} alt={f.name} className="w-full h-full object-cover" />
+                      <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover" />
                     ) : (
-                      f.name.charAt(0).toUpperCase()
+                      f.username.charAt(0).toUpperCase()
                     )}
                   </span>
-                  <span className="text-xs text-muted">{f.name}</span>
+                  <span className="text-xs text-muted">{f.username}</span>
                 </Link>
               ))}
             </div>
@@ -359,7 +358,7 @@ export default function PublicProfilePage() {
             <p className="text-sm text-muted">
               {isOwnProfile
                 ? "You haven't published any stories yet."
-                : `${profile.name} hasn't published any stories yet.`}
+                : `${profile.username} hasn't published any stories yet.`}
             </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

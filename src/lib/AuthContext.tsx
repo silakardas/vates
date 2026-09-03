@@ -45,7 +45,6 @@ async function normalizeAvatarImage(file: File): Promise<File> {
 
 type User = {
   id: string;
-  name: string;
   email: string;
   joinedAt: number;
   avatarUrl?: string;
@@ -58,7 +57,8 @@ type User = {
   // give it), so it isn't known synchronously from the session the way
   // the rest of this object is — it starts undefined and is filled in
   // by loadUsername() just after. usernameChangedAt drives the
-  // once-a-week cooldown in Settings.
+  // once-a-week cooldown in Settings. There's no separate display name
+  // anymore — username is the only identity shown anywhere in the app.
   username?: string;
   usernameChangedAt?: string | null;
 };
@@ -67,14 +67,13 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ error?: string }>;
-  signup: (email: string, password: string, name: string) => Promise<{ error?: string; needsConfirmation?: boolean }>;
+  signup: (email: string, password: string, username: string) => Promise<{ error?: string; needsConfirmation?: boolean }>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<{ error?: string }>;
   resetPassword: (email: string) => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateAvatar: (file: File) => Promise<{ error?: string; url?: string }>;
   updateProfile: (updates: {
-    name: string;
     dailyGoal: number;
     bio?: string;
     favoriteLine?: string;
@@ -91,7 +90,6 @@ function toUser(session: Session | null): User | null {
   return {
     id,
     email: email ?? "",
-    name: (user_metadata?.name as string | undefined) || (email?.split("@")[0] ?? "writer"),
     joinedAt: created_at ? new Date(created_at).getTime() : Date.now(),
     avatarUrl: user_metadata?.avatar_url as string | undefined,
     dailyGoal: (user_metadata?.daily_goal as number | undefined) ?? 300,
@@ -153,13 +151,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message };
   }
 
-  async function signup(email: string, password: string, name: string) {
+  async function signup(email: string, password: string, username: string) {
+    const normalized = username.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(normalized)) {
+      return {
+        error: "Username must be 3-20 characters: lowercase letters, numbers, and underscores only.",
+      };
+    }
+
+    // Best-effort pre-check so a taken username fails fast with a clear
+    // message, rather than only surfacing once handle_new_user()'s unique
+    // index violation gets wrapped into a generic "Database error saving
+    // new user" by Supabase Auth. Still a race (two signups for the same
+    // name at once), so the trigger's constraint is the real backstop —
+    // this just makes the common case friendlier.
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", normalized)
+      .maybeSingle();
+    if (existing) return { error: "That username is already taken." };
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { name } },
+      options: { data: { username: normalized } },
     });
-    if (error) return { error: error.message };
+    if (error) {
+      // The pre-check above doesn't run inside a transaction with the
+      // insert, so a genuine race still surfaces here as a raw/wrapped
+      // Postgres error rather than a friendly message — catch that case.
+      if (/unique|duplicate|already exists/i.test(error.message)) {
+        return { error: "That username is already taken." };
+      }
+      return { error: error.message };
+    }
     if (!data.session) {
       // Account created, but email confirmation is required before a
       // session exists — don't pretend the user is logged in.
@@ -205,7 +231,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function updateProfile(updates: {
-    name: string;
     dailyGoal: number;
     bio?: string;
     favoriteLine?: string;
@@ -215,7 +240,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { error } = await supabase.auth.updateUser({
       data: {
-        name: updates.name,
         daily_goal: updates.dailyGoal,
         bio: updates.bio ?? "",
         favorite_line: updates.favoriteLine ?? "",
@@ -225,21 +249,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (error) return { error: error.message };
 
-    // Mirror name + the writer-identity fields onto profiles, same
-    // reasoning as avatar_url in updateAvatar below: auth.users'
-    // metadata (just written above) isn't readable by anyone but the
-    // user themselves, but /profile/[username] needs these fields for
-    // other visitors. bio/favorite_line only ever surface to other
-    // visitors through the profile_writer_identity view (see
-    // schema.sql), which gates on show_writer_identity — so it's safe
-    // to always write the raw values here regardless of the toggle's
-    // state. Best-effort: the fields still work from the user's own
-    // perspective (via auth metadata) even if this fails, so don't
-    // surface it as a blocking error.
+    // Mirror the writer-identity fields onto profiles, same reasoning as
+    // avatar_url in updateAvatar below: auth.users' metadata (just
+    // written above) isn't readable by anyone but the user themselves,
+    // but /profile/[username] needs these fields for other visitors.
+    // bio/favorite_line only ever surface to other visitors through the
+    // profile_writer_identity view (see schema.sql), which gates on
+    // show_writer_identity — so it's safe to always write the raw values
+    // here regardless of the toggle's state. Best-effort: the fields
+    // still work from the user's own perspective (via auth metadata)
+    // even if this fails, so don't surface it as a blocking error.
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        name: updates.name,
         bio: updates.bio ?? "",
         favorite_line: updates.favoriteLine ?? "",
         show_writer_identity: updates.showWriterIdentity ?? false,

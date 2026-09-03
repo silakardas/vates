@@ -30,7 +30,7 @@ type DiscoverStoryRow = TagColumns & {
 
 type Author = {
   id: string;
-  name: string;
+  username: string;
 };
 
 type CommentRow = {
@@ -94,7 +94,7 @@ export default function DiscoverStoryPage() {
 
       const { data: profileRow } = await supabase
         .from("profiles")
-        .select("id, name")
+        .select("id, username")
         .eq("id", storyRow.owner_id)
         .maybeSingle();
 
@@ -207,13 +207,13 @@ export default function DiscoverStoryPage() {
     if (userIds.length > 0) {
       const { data: profileRows, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, name")
+        .select("id, username")
         .in("id", userIds);
       if (profilesError) {
         console.error("Failed to load comment authors:", profilesError.message);
       } else {
         authorMap = Object.fromEntries(
-          (profileRows ?? []).map((p) => [p.id as string, p.name as string])
+          (profileRows ?? []).map((p) => [p.id as string, p.username as string])
         );
       }
     }
@@ -322,10 +322,10 @@ export default function DiscoverStoryPage() {
 
         <div className="flex items-center gap-3 mb-2 flex-wrap">
           <span className="w-7 h-7 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
-            {author?.name?.charAt(0).toUpperCase() ?? "?"}
+            {author?.username?.charAt(0).toUpperCase() ?? "?"}
           </span>
           {/* Not linked to a profile page yet — that lands in a later phase. */}
-          <span className="text-sm text-muted">{author?.name ?? "Unknown author"}</span>
+          <span className="text-sm text-muted">{author?.username ?? "Unknown author"}</span>
           <span className="text-faint">·</span>
           <span className="text-xs font-mono text-faint flex items-center gap-1">
             👁 {(story.view_count ?? 0).toLocaleString("en-US")}

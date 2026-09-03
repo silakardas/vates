@@ -36,8 +36,8 @@ export default function Home() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only init to avoid SSR hydration mismatch (random line + local time)
-    setIntro({ line: randomLine(), greeting: timeGreeting(user?.name) });
-  }, [user?.name]);
+    setIntro({ line: randomLine(), greeting: timeGreeting(user?.username) });
+  }, [user?.username]);
 
   useEffect(() => {
     // Computed client-side (not baked in at build time) so the banner

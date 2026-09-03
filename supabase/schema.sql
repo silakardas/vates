@@ -381,7 +381,7 @@ alter table public.profiles
 -- down, right after the column that creates it — see the username
 -- section below.
 revoke select on public.profiles from anon, authenticated;
-grant select (id, name, avatar_url, created_at, show_writer_identity)
+grant select (id, avatar_url, created_at, show_writer_identity)
   on public.profiles to anon, authenticated;
 -- (UPDATE is untouched by the above, and stays governed by the existing
 -- "profiles are self-updatable" RLS policy plus the on_username_change
@@ -628,3 +628,41 @@ drop trigger if exists on_username_change on public.profiles;
 create trigger on_username_change
   before update on public.profiles
   for each row execute function public.enforce_username_change();
+
+-- ---------------------------------------------------------------------
+-- Takma ad (display name) kaldırıldı. Kullanıcılar artık kayıt olurken
+-- doğrudan bir username seçiyor; ayrı, düzenlenebilir bir "display name"
+-- alanı yok — username zaten NOT NULL + unique olduğu için tek kimlik
+-- alanı olarak yeterli. `name` sütunu artık hiçbir yerde okunmuyor ya da
+-- gösterilmiyor, bu yüzden tamamen kaldırılıyor. Var olan kullanıcıların
+-- eski görünen adları kaybolur; herkesin kimliği artık username'i.
+-- ---------------------------------------------------------------------
+
+-- handle_new_user artık signup formunun gönderdiği
+-- raw_user_meta_data->>'username'i kullanıyor (bkz. AuthContext.tsx /
+-- signup sayfası). Böyle bir değer gelmezse (savunma amaçlı — örn. eski
+-- bir client ya da doğrudan Supabase Auth üzerinden açılan bir hesap)
+-- e-postanın @ öncesinden generate_username_from_name ile bir aday
+-- üretiliyor; fonksiyon zaten herhangi bir metinden aday türetebiliyor,
+-- "name" sütununa bağımlı değildi.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_username text := nullif(trim(new.raw_user_meta_data->>'username'), '');
+begin
+  if v_username is null then
+    v_username := public.generate_username_from_name(split_part(new.email, '@', 1));
+  end if;
+  insert into public.profiles (id, username)
+  values (new.id, v_username);
+  return new;
+end;
+$$;
+
+-- DROP COLUMN kendi grant'ini/index'ini de otomatik temizler, ayrıca bir
+-- revoke gerekmiyor.
+alter table public.profiles
+  drop column if exists name;

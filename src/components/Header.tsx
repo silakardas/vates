@@ -81,14 +81,14 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={user.avatarUrl}
-                      alt={user.name}
+                      alt={user.username ?? ""}
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    user.name.charAt(0).toUpperCase()
+                    (user.username ?? "?").charAt(0).toUpperCase()
                   )}
                 </span>
-                {user.name}
+                {user.username}
               </button>
 
               <AnimatePresence>
@@ -156,11 +156,11 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={user.avatarUrl}
-                    alt={user.name}
+                    alt={user.username ?? ""}
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  user.name.charAt(0).toUpperCase()
+                  (user.username ?? "?").charAt(0).toUpperCase()
                 )}
               </span>
             </Link>
@@ -222,7 +222,7 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                     onClick={() => setOpen(false)}
                     className="py-2.5 text-muted hover:text-parchment transition-colors"
                   >
-                    {user.name}&apos;s profile
+                    {user.username}&apos;s profile
                   </Link>
                   <button
                     type="button"

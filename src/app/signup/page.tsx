@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function SignupPage() {
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -15,12 +15,12 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
-
+a
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const result = await signup(email, password, name);
+    const result = await signup(email, password, username);
     setSubmitting(false);
     if (result.error) {
       setError(result.error);
@@ -71,16 +71,22 @@ export default function SignupPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-1.5">
-                Name
+                Username
               </label>
               <input
                 type="text"
                 required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="What should we call you?"
+                minLength={3}
+                maxLength={20}
+                pattern="[a-z0-9_]{3,20}"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                placeholder="lowercase letters, numbers, underscores"
                 className="w-full bg-ink-soft rounded-lg px-4 py-2.5 text-parchment outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
               />
+              <p className="text-[11px] text-faint mt-1.5">
+                This is how you'll appear everywhere on Vates. 3-20 characters.
+              </p>
             </div>
             <div>
               <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-1.5">

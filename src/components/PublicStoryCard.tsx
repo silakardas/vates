@@ -17,13 +17,11 @@ export type PublicStoryCardData = {
 
 export default function PublicStoryCard({
   story,
-  authorName,
   authorUsername,
 }: {
   story: PublicStoryCardData;
-  // Both optional: /profile/[username] already shows the author once at
-  // the top of the page, so it skips this line entirely.
-  authorName?: string;
+  // Optional: /profile/[username] already shows the author once at the
+  // top of the page, so it skips this line entirely.
   authorUsername?: string;
 }) {
   const description = story.description?.trim() || null;
@@ -58,16 +56,12 @@ export default function PublicStoryCard({
           <span>♥ {(story.likeCount ?? 0).toLocaleString("en-US")}</span>
         </span>
       </div>
-      {authorName && (
+      {authorUsername && (
         <p className="relative z-10 text-xs font-mono text-faint mb-2 w-fit">
           by{" "}
-          {authorUsername ? (
-            <Link href={`/profile/${authorUsername}`} className="hover:text-lamp transition-colors">
-              {authorName}
-            </Link>
-          ) : (
-            authorName
-          )}
+          <Link href={`/profile/${authorUsername}`} className="hover:text-lamp transition-colors">
+            {authorUsername}
+          </Link>
         </p>
       )}
       {fandoms.length > 0 && (

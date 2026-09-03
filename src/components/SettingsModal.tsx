@@ -97,7 +97,6 @@ export default function SettingsModal() {
 
   const [tab, setTab] = useState<Tab>("Profile");
 
-  const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [favoriteLine, setFavoriteLine] = useState("");
   const [showWriterIdentity, setShowWriterIdentity] = useState(false);
@@ -128,7 +127,6 @@ export default function SettingsModal() {
 
   useEffect(() => {
     if (user) {
-      setName(user.name);
       setBio(user.bio ?? "");
       setFavoriteLine(user.favoriteLine ?? "");
       setShowWriterIdentity(user.showWriterIdentity ?? false);
@@ -176,14 +174,8 @@ export default function SettingsModal() {
     setError(null);
     setSaved(false);
 
-    if (!name.trim()) {
-      setError("Display name can't be empty.");
-      return;
-    }
-
     setSaving(true);
     const result = await updateProfile({
-      name: name.trim(),
       dailyGoal,
       bio: bio.trim(),
       favoriteLine: favoriteLine.trim(),
@@ -302,20 +294,19 @@ export default function SettingsModal() {
   }
 
   function handleExportReadable() {
-    const text = buildReadableExport(user!.name, stories);
+    const handle = user!.username ?? user!.email.split("@")[0];
+    const text = buildReadableExport(handle, stories);
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     downloadBlob(
       blob,
-      `${user!.name.trim().replace(/\s+/g, "-").toLowerCase()}-stories-${new Date()
-        .toISOString()
-        .slice(0, 10)}.txt`
+      `${handle}-stories-${new Date().toISOString().slice(0, 10)}.txt`
     );
   }
 
   function handleExportJson() {
     const payload = {
       exportedAt: new Date().toISOString(),
-      user: { name: user!.name, email: user!.email },
+      user: { username: user!.username, email: user!.email },
       stories,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -438,11 +429,11 @@ export default function SettingsModal() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={user.avatarUrl}
-                              alt={user.name}
+                              alt={user.username ?? ""}
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            user.name.charAt(0).toUpperCase()
+                            (user.username ?? "?").charAt(0).toUpperCase()
                           )}
                           <span className="absolute inset-0 bg-ink/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-mono text-parchment uppercase">
                             {avatarUploading ? "…" : "Change"}
@@ -459,18 +450,6 @@ export default function SettingsModal() {
                           <p className="text-sm text-parchment">Profile photo</p>
                           {avatarError && <p className="text-xs text-red-400 mt-1">{avatarError}</p>}
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="block font-mono text-xs text-muted uppercase tracking-wide mb-2">
-                          Display name
-                        </label>
-                        <input
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          maxLength={40}
-                          className="w-full bg-ink-soft rounded-lg px-4 py-2.5 outline-none border border-parchment/10 focus:border-lamp/40 transition-colors"
-                        />
                       </div>
 
                       <div>
@@ -725,13 +704,15 @@ export default function SettingsModal() {
                     <div className="w-12 h-12 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                       {user.avatarUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.avatarUrl} alt={name} className="w-full h-full object-cover" />
+                        <img src={user.avatarUrl} alt={username} className="w-full h-full object-cover" />
                       ) : (
-                        (name || "?").charAt(0).toUpperCase()
+                        (username || "?").charAt(0).toUpperCase()
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-serif text-parchment truncate">{name || "Unnamed"}</p>
+                      <p className="font-serif text-parchment truncate">
+                        {username ? `@${username}` : "Unnamed"}
+                      </p>
                       <p className="text-xs text-faint truncate">{user.email}</p>
                     </div>
                   </div>

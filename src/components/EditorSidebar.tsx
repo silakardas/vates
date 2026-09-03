@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Story, StoryType, TagCategory } from "@/lib/types";
+import { Story, StoryTags, StoryType, TagCategory } from "@/lib/types";
 import { StoryStatus, STATUS_CONFIG } from "@/lib/storyStatus";
 import { useStories } from "@/lib/StoryContext";
 import { relativeTime } from "@/lib/timeAgo";
-import { TAG_CATEGORIES } from "@/lib/tags";
+import { TAG_CATEGORIES, tagColumnsToStoryTags } from "@/lib/tags";
+import { computeTagsByCategory } from "@/lib/search";
+import { useSearchStories } from "@/lib/useSearchStories";
 import PublishReviewModal from "./PublishReviewModal";
 
 const TABS = ["Details", "Characters", "Notes", "Chapters", "History"] as const;
@@ -45,6 +47,20 @@ export default function EditorSidebar(props: {
   const { story } = props;
   const activeChapter =
     story.chapters.find((c) => c.id === props.activeChapterId) ?? story.chapters[0];
+
+  // Tag autocomplete: reuses the same popular-tags-per-category data the
+  // search bar/filters already compute, rather than inventing a second
+  // way to fetch and count public stories' tags.
+  const { stories: publicStories } = useSearchStories(true);
+  const publicStoryTags = useMemo(() => {
+    const map = new Map<string, StoryTags>();
+    publicStories.forEach((s) => map.set(s.id, tagColumnsToStoryTags(s)));
+    return map;
+  }, [publicStories]);
+  const tagSuggestionsByCategory = useMemo(
+    () => computeTagsByCategory(publicStories, publicStoryTags),
+    [publicStories, publicStoryTags]
+  );
 
   function handleAddTag(e: React.FormEvent, category: TagCategory) {
     e.preventDefault();
@@ -209,64 +225,33 @@ export default function EditorSidebar(props: {
               </div>
             </div>
 
-            {TAG_CATEGORIES.map(({ key, label, placeholder }) => {
-              const values = story.tags[key];
-              return (
-                <div key={key}>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <label className="block font-mono text-[10px] uppercase tracking-wide text-muted">
-                      {label}
-                    </label>
-                    {key === "fandoms" && (
-                      <button
-                        onClick={() => addTag(story.id, "fandoms", "Original Work")}
-                        className="font-mono text-[10px] uppercase tracking-wide text-lamp/80 hover:text-lamp transition-colors"
-                      >
-                        + Original Work
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {values.length === 0 && (
-                      <p className="text-xs text-faint">No {label.toLowerCase()} tags yet.</p>
-                    )}
-                    {values.map((tag) => (
-                      <motion.span
-                        key={tag}
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex items-center gap-1.5 text-xs bg-ink-soft border border-parchment/10 px-2.5 py-1 rounded-full"
-                      >
-                        #{tag}
-                        <button
-                          onClick={() => removeTag(story.id, key, tag)}
-                          className="text-faint hover:text-crimson transition-colors"
-                          aria-label={`Remove ${label.toLowerCase()} tag ${tag}`}
-                        >
-                          ✕
-                        </button>
-                      </motion.span>
-                    ))}
-                  </div>
-                  <form onSubmit={(e) => handleAddTag(e, key)} className="flex gap-2">
-                    <input
-                      value={tagInputs[key]}
-                      onChange={(e) =>
-                        setTagInputs((prev) => ({ ...prev, [key]: e.target.value }))
-                      }
-                      placeholder={placeholder}
-                      className="flex-1 min-w-0 bg-ink-soft rounded-lg px-3 py-1.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
-                    />
+            {TAG_CATEGORIES.map(({ key, label, placeholder }) => (
+              <TagCategoryField
+                key={key}
+                label={label}
+                placeholder={placeholder}
+                values={story.tags[key]}
+                suggestions={tagSuggestionsByCategory[key]}
+                value={tagInputs[key]}
+                onValueChange={(v) => setTagInputs((prev) => ({ ...prev, [key]: v }))}
+                onSubmit={(e) => handleAddTag(e, key)}
+                onSelectSuggestion={(tag) => {
+                  addTag(story.id, key, tag);
+                  setTagInputs((prev) => ({ ...prev, [key]: "" }));
+                }}
+                onRemove={(tag) => removeTag(story.id, key, tag)}
+                extra={
+                  key === "fandoms" ? (
                     <button
-                      type="submit"
-                      className="text-xs font-mono text-lamp px-2 hover:underline"
+                      onClick={() => addTag(story.id, "fandoms", "Original Work")}
+                      className="font-mono text-[10px] uppercase tracking-wide text-lamp/80 hover:text-lamp transition-colors"
                     >
-                      Add
+                      + Original Work
                     </button>
-                  </form>
-                </div>
-              );
-            })}
+                  ) : undefined
+                }
+              />
+            ))}
           </div>
         )}
 
@@ -507,5 +492,113 @@ export default function EditorSidebar(props: {
         <PublishReviewModal story={story} onClose={() => setShowPublishReview(false)} />
       )}
     </aside>
+  );
+}
+
+// One tag category's full editing UI: the current tags as removable
+// chips, a text input + Add button to type a new one, and — while
+// typing — a dropdown of matching tags already used elsewhere on public
+// stories in this category, styled like the rest of the app's dropdowns
+// (bg-ink-soft, border-parchment/10). Purely a suggestion: picking one
+// adds it immediately, but the input still accepts anything typed and
+// submitted, matching or not.
+function TagCategoryField({
+  label,
+  placeholder,
+  values,
+  suggestions,
+  value,
+  onValueChange,
+  onSubmit,
+  onSelectSuggestion,
+  onRemove,
+  extra,
+}: {
+  label: string;
+  placeholder: string;
+  values: string[];
+  suggestions: string[];
+  value: string;
+  onValueChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onSelectSuggestion: (tag: string) => void;
+  onRemove: (tag: string) => void;
+  extra?: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+
+  const q = value.trim().toLowerCase();
+  const filteredSuggestions = q
+    ? suggestions.filter((t) => t.toLowerCase().includes(q) && !values.includes(t)).slice(0, 6)
+    : [];
+  const showSuggestions = focused && filteredSuggestions.length > 0;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <label className="block font-mono text-[10px] uppercase tracking-wide text-muted">
+          {label}
+        </label>
+        {extra}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {values.length === 0 && (
+          <p className="text-xs text-faint">No {label.toLowerCase()} tags yet.</p>
+        )}
+        {values.map((tag) => (
+          <motion.span
+            key={tag}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-1.5 text-xs bg-ink-soft border border-parchment/10 px-2.5 py-1 rounded-full"
+          >
+            #{tag}
+            <button
+              onClick={() => onRemove(tag)}
+              className="text-faint hover:text-crimson transition-colors"
+              aria-label={`Remove ${label.toLowerCase()} tag ${tag}`}
+            >
+              ✕
+            </button>
+          </motion.span>
+        ))}
+      </div>
+      <div
+        className="relative"
+        tabIndex={-1}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false);
+        }}
+      >
+        <form onSubmit={onSubmit} className="flex gap-2">
+          <input
+            value={value}
+            onChange={(e) => onValueChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            placeholder={placeholder}
+            autoComplete="off"
+            className="flex-1 min-w-0 bg-ink-soft rounded-lg px-3 py-1.5 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint"
+          />
+          <button type="submit" className="text-xs font-mono text-lamp px-2 hover:underline">
+            Add
+          </button>
+        </form>
+        {showSuggestions && (
+          <ul className="absolute left-0 right-0 top-full mt-1 z-10 bg-ink-soft border border-parchment/10 rounded-lg shadow-lg overflow-hidden divide-y divide-parchment/10">
+            {filteredSuggestions.map((tag) => (
+              <li key={tag}>
+                <button
+                  type="button"
+                  onClick={() => onSelectSuggestion(tag)}
+                  className="w-full text-left px-3 py-1.5 text-sm text-muted hover:text-parchment hover:bg-parchment/5 transition-colors"
+                >
+                  #{tag}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

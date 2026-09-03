@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter, IBM_Plex_Mono } from "next/font/google";
+import { MotionConfig } from "framer-motion";
 import { StoryProvider } from "@/lib/StoryContext";
 import { AuthProvider } from "@/lib/AuthContext";
 import { SettingsModalProvider } from "@/lib/SettingsModalContext";
@@ -55,15 +56,23 @@ export default function RootLayout({
       className={`${fraunces.variable} ${inter.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AuthProvider>
-          <StoryProvider>
-            <SettingsModalProvider>
-              {children}
-              <FeedbackWidget />
-              <SettingsModal />
-            </SettingsModalProvider>
-          </StoryProvider>
-        </AuthProvider>
+        {/* Wrapping the whole tree once here — rather than calling
+            framer-motion's useReducedMotion() in every component that
+            uses <motion.*> (Header, AdvancedSearchPanel, EditorSidebar,
+            etc.) — means every existing and future animation in the app
+            automatically respects the OS-level prefers-reduced-motion
+            setting, with zero changes needed in those components. */}
+        <MotionConfig reducedMotion="user">
+          <AuthProvider>
+            <StoryProvider>
+              <SettingsModalProvider>
+                {children}
+                <FeedbackWidget />
+                <SettingsModal />
+              </SettingsModalProvider>
+            </StoryProvider>
+          </AuthProvider>
+        </MotionConfig>
       </body>
     </html>
   );

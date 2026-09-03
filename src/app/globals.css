@@ -12,7 +12,9 @@
   --color-crimson: #CF6F60;
   --color-completed: #93AD81;
   --color-muted: #96A0B2;
-  --color-faint: #6A7188;
+  /* Lightened from #6A7188 (~3.2:1 on --color-ink) to meet WCAG AA's
+     4.5:1 for normal text, while keeping the same gray-blue hue. */
+  --color-faint: #8891A6;
 
   --font-serif: var(--font-fraunces);
   --font-sans: var(--font-inter);

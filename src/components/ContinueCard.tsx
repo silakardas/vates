@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { STATUS_CONFIG, StoryStatus } from "@/lib/storyStatus";
+import StreakBadge from "@/components/StreakBadge";
 
 export default function ContinueCard(props: {
   id: string;
@@ -55,9 +56,7 @@ export default function ContinueCard(props: {
         <span className="text-xs font-mono text-muted">
           {props.wordCount.toLocaleString("en-US")} words
         </span>
-        {props.streak ? (
-          <span className="text-xs font-mono text-lamp">{props.streak}-day streak</span>
-        ) : null}
+        {props.streak ? <StreakBadge streak={props.streak} /> : null}
         <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           <Link
             href={`/story/${props.id}`}

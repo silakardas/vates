@@ -5,6 +5,7 @@ import Link from "next/link";
 import { STATUS_CONFIG, StoryStatus } from "@/lib/storyStatus";
 import { relativeTime } from "@/lib/timeAgo";
 import { StoryType, StoryTags } from "@/lib/types";
+import StreakBadge from "@/components/StreakBadge";
 
 export default function StoryRow(props: {
   id: string;
@@ -53,9 +54,6 @@ export default function StoryRow(props: {
                   ? `series · ${props.chapterCount} ch`
                   : "oneshot"}
               </span>
-              {props.streak ? (
-                <span className="text-xs font-mono text-lamp">{props.streak}d streak</span>
-              ) : null}
               {props.pinned && (
                 <span className="text-xs font-mono text-lamp">pinned</span>
               )}
@@ -95,6 +93,8 @@ export default function StoryRow(props: {
           </div>
         </div>
       </Link>
+
+      {props.streak ? <StreakBadge streak={props.streak} className="shrink-0 self-start mt-0.5" /> : null}
 
       {props.onTogglePin && (
         <button

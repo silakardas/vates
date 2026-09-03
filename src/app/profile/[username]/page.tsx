@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
 import { TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
+import { totalWritingDays } from "@/lib/activity";
 
 // This used to be a straight copy-paste of the homepage (it never even
 // read the userId param), which is why visiting anyone's "Public
@@ -146,13 +147,13 @@ export default function PublicProfilePage() {
   }, [load]);
 
   const totalWords = stories.reduce((sum, s) => sum + (s.word_count ?? 0), 0);
-  // Streak is a private writing-habit stat (draft-inclusive), so it's only
-  // ever computed from the signed-in user's own StoryContext, and only
-  // shown on their own profile — never derived from another writer's
+  // Total distinct days written on, across every story — not the
+  // longest single-story streak (that's WorkshopStats' "Best streak").
+  // Private writing-habit stat (draft-inclusive), so it's only ever
+  // computed from the signed-in user's own StoryContext, and only shown
+  // on their own profile — never derived from another writer's
   // published-only story rows.
-  const streak = isOwnProfile
-    ? ownStories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0)
-    : 0;
+  const writingDays = isOwnProfile ? totalWritingDays(ownStories) : 0;
 
   if (loading) {
     return (
@@ -262,8 +263,8 @@ export default function PublicProfilePage() {
           </button>
           {isOwnProfile && (
             <div className="bg-panel border border-parchment/10 rounded-xl px-3 py-4 text-center">
-              <p className="font-mono text-2xl text-lamp">{streak || "—"}</p>
-              <p className="text-xs text-muted mt-1">day streak</p>
+              <p className="font-mono text-2xl text-lamp">{writingDays || "—"}</p>
+              <p className="text-xs text-muted mt-1">writing days</p>
             </div>
           )}
         </div>

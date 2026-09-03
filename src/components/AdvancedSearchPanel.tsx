@@ -167,13 +167,18 @@ function StoryFilterTab({
   const min = minWords.trim() ? Number(minWords) : null;
   const max = maxWords.trim() ? Number(maxWords) : null;
   const q = query.toLowerCase();
+  // Mirrors UserSearchTab: no query means no results shown at all, not
+  // "show everything". Word-count/sort/tag filters stay visible and
+  // interactive with an empty query (so a visitor can set them up before
+  // typing), but they never produce a grid on their own.
+  const hasQuery = q.length > 0;
 
   // Same matching rules as SearchBar's quick dropdown and the /search
   // page: title, author name, or any of the four tag categories — plus
   // the word-count range and selected tags.
   const filtered = stories.filter((s) => {
     const tags = storyTags.get(s.id);
-    const matchesQuery = !q || matchesStoryQuery(s, q, authors[s.owner_id]?.username, tags);
+    const matchesQuery = hasQuery && matchesStoryQuery(s, q, authors[s.owner_id]?.username, tags);
     // AND across (and within) categories: every selected tag, in every
     // selected category, must be present on the story.
     const matchesTags = TAG_CATEGORIES.every(({ key }) =>
@@ -289,15 +294,21 @@ function StoryFilterTab({
         </div>
       )}
 
-      {loading && (
+      {!hasQuery && (
+        <p className="text-muted text-sm py-8 text-center">
+          Start typing to search stories…
+        </p>
+      )}
+
+      {hasQuery && loading && (
         <p className="text-muted text-sm py-8 text-center">Loading stories…</p>
       )}
 
-      {!loading && sorted.length === 0 && (
+      {hasQuery && !loading && sorted.length === 0 && (
         <p className="text-muted text-sm py-8 text-center">No results found.</p>
       )}
 
-      {!loading && sorted.length > 0 && (
+      {hasQuery && !loading && sorted.length > 0 && (
         <motion.div
           key={`${query}-${sortBy}-${minWords}-${maxWords}-${TAG_CATEGORIES.map(({ key }) => selectedTags[key].join(",")).join("|")}`}
           initial="hidden"

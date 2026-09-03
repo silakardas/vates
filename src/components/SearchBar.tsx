@@ -53,10 +53,12 @@ export default function SearchBar({ compact = false }: { compact?: boolean }) {
   const q = activeQuery.toLowerCase();
 
   // Loads every public story exactly once, the first time it's actually
-  // needed — a real search, or opening the Story tab to browse by its
-  // filters — rather than on every page load just because the bar (and
-  // therefore this component) is always mounted in the Header.
-  const needsStories = activeQuery.length > 0 || (advancedOpen && activeTab === "story");
+  // needed — i.e. a real query has been typed. Just opening the Story
+  // tab (with an empty query) no longer triggers a fetch on its own:
+  // StoryFilterTab doesn't render a grid until there's a query either,
+  // so pulling every public story in the background before that would
+  // be wasted work.
+  const needsStories = activeQuery.length > 0;
   const { stories, authors, loading: storiesLoading } = useSearchStories(needsStories);
 
   // Quick preview results for the default (non-advanced) dropdown: text

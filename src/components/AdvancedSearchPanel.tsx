@@ -8,15 +8,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { TagCategory } from "@/lib/types";
 import { TAG_CATEGORIES, flattenStoryTags, tagColumnsToStoryTags } from "@/lib/tags";
 import { matchesStoryQuery } from "@/lib/search";
-import {
-  FriendProfile,
-  FriendStatus,
-  getFriendStatus,
-  removeFriendOrRequest,
-  respondToFriendRequest,
-  searchUsers,
-  sendFriendRequest,
-} from "@/lib/friends";
+import { searchUsers, FriendProfile } from "@/lib/friends";
+import { FollowStatus, getFollowStatus, followAuthor, unfollowAuthor } from "@/lib/follows";
 import type { AuthorInfo, PublicStoryRow } from "@/components/SearchBar";
 
 export type SearchTab = "story" | "user";
@@ -497,7 +490,7 @@ function CustomTagBox({
 function UserSearchTab({ query }: { query: string }) {
   const { user } = useAuth();
   const [results, setResults] = useState<FriendProfile[]>([]);
-  const [statuses, setStatuses] = useState<Record<string, FriendStatus>>({});
+  const [statuses, setStatuses] = useState<Record<string, FollowStatus>>({});
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -518,7 +511,7 @@ function UserSearchTab({ query }: { query: string }) {
       setLoading(false);
 
       const entries = await Promise.all(
-        profiles.map(async (p) => [p.id, await getFriendStatus(user.id, p.id)] as const)
+        profiles.map(async (p) => [p.id, await getFollowStatus(user.id, p.id)] as const)
       );
       if (!cancelled) setStatuses(Object.fromEntries(entries));
     }
@@ -541,7 +534,7 @@ function UserSearchTab({ query }: { query: string }) {
   }
 
   async function refreshStatus(otherId: string) {
-    const status = await getFriendStatus(user!.id, otherId);
+    const status = await getFollowStatus(user!.id, otherId);
     setStatuses((prev) => ({ ...prev, [otherId]: status }));
   }
 
@@ -595,36 +588,22 @@ function UserSearchTab({ query }: { query: string }) {
               <span className="text-sm text-parchment truncate">{profile.username}</span>
             </Link>
 
-            {!status ? null : status.kind === "none" ? (
+            {!status ? null : status === "not-following" ? (
               <button
                 disabled={busy}
-                onClick={() => runAction(profile.id, () => sendFriendRequest(user.id, profile.id))}
+                onClick={() => runAction(profile.id, () => followAuthor(user.id, profile.id))}
                 className="flex-shrink-0 text-xs font-mono px-3 py-1.5 rounded-full bg-lamp/15 border border-lamp/30 text-lamp hover:bg-lamp/25 transition-colors disabled:opacity-60"
               >
-                {busy ? "…" : "Add"}
-              </button>
-            ) : status.kind === "outgoing" ? (
-              <span className="flex-shrink-0 text-xs font-mono px-3 py-1.5 rounded-full border border-parchment/15 text-faint">
-                Pending
-              </span>
-            ) : status.kind === "incoming" ? (
-              <button
-                disabled={busy}
-                onClick={() =>
-                  runAction(profile.id, () => respondToFriendRequest(status.requestId, "accepted"))
-                }
-                className="flex-shrink-0 text-xs font-mono px-3 py-1.5 rounded-full bg-lamp text-ink hover:opacity-90 transition-opacity disabled:opacity-60"
-              >
-                {busy ? "…" : "Accept"}
+                {busy ? "…" : "Follow"}
               </button>
             ) : (
               <button
                 disabled={busy}
-                title="Remove friend"
-                onClick={() => runAction(profile.id, () => removeFriendOrRequest(status.requestId))}
+                title="Unfollow"
+                onClick={() => runAction(profile.id, () => unfollowAuthor(user.id, profile.id))}
                 className="group flex-shrink-0 text-xs font-mono px-3 py-1.5 rounded-full border border-lamp/30 text-lamp hover:bg-crimson/10 hover:border-crimson/30 hover:text-crimson transition-colors disabled:opacity-60"
               >
-                {busy ? "…" : <>✓ Friends<span className="hidden group-hover:inline"> · Remove</span></>}
+                {busy ? "…" : <>✓ Following<span className="hidden group-hover:inline"> · Unfollow</span></>}
               </button>
             )}
           </li>

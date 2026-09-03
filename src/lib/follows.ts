@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 // followed side.
 export type FollowStatus = "following" | "not-following";
 
+export type FollowProfile = {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+};
+
 export type FollowedAuthorStory = {
   id: string;
   title: string;
@@ -84,6 +90,55 @@ export async function getFollowingCount(userId: string): Promise<number> {
     return 0;
   }
   return count ?? 0;
+}
+
+// Profile list (not just a count) of everyone following userId — used on
+// the profile page's "Followers" section, mirrors friends.ts's old
+// listFriends but one-directional.
+export async function listFollowers(userId: string): Promise<FollowProfile[]> {
+  const supabase = createClient();
+  const { data: links } = await supabase
+    .from("author_follows")
+    .select("follower_id")
+    .eq("followed_id", userId);
+
+  if (!links || links.length === 0) return [];
+
+  const followerIds = links.map((l) => l.follower_id as string);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .in("id", followerIds);
+
+  return (profiles ?? []).map((p) => ({
+    id: p.id as string,
+    username: p.username as string,
+    avatarUrl: (p.avatar_url as string | null) ?? null,
+  }));
+}
+
+// Profile list of everyone userId follows — used on the profile page's
+// "Following" section.
+export async function listFollowing(userId: string): Promise<FollowProfile[]> {
+  const supabase = createClient();
+  const { data: links } = await supabase
+    .from("author_follows")
+    .select("followed_id")
+    .eq("follower_id", userId);
+
+  if (!links || links.length === 0) return [];
+
+  const followedIds = links.map((l) => l.followed_id as string);
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, username, avatar_url")
+    .in("id", followedIds);
+
+  return (profiles ?? []).map((p) => ({
+    id: p.id as string,
+    username: p.username as string,
+    avatarUrl: (p.avatar_url as string | null) ?? null,
+  }));
 }
 
 // How many of the people currentUserId follows have recently published

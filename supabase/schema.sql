@@ -83,3 +83,26 @@ drop policy if exists "author follows are self-deletable" on public.author_follo
 create policy "author follows are self-deletable"
   on public.author_follows for delete
   using (auth.uid() = follower_id);
+
+-- ---------------------------------------------------------------------
+-- Friends -> Follows göçü: "friends" (karşılıklı, istek/kabul gerektiren)
+-- sistemi kaldırılıp tek yönlü "follow" sistemiyle değiştirildi. Daha
+-- önce accepted olan her friend_requests satırı, iki kullanıcının
+-- karşılıklı olarak arkadaş olduğu anlamına geliyordu; bu ilişkiyi
+-- author_follows'a HER İKİ YÖNDE de yazarak koruyoruz, böylece geçişten
+-- sonra önceden arkadaş olan kullanıcılar birbirini otomatik takip
+-- ediyor olur ve hiçbir bağlantı kaybolmaz. friend_requests tablosu
+-- silinmiyor (geçmiş veri olarak duruyor), sadece artık uygulama
+-- tarafından kullanılmıyor. "on conflict do nothing" sayesinde bu blok
+-- idempotent: tekrar tekrar çalıştırılabilir.
+insert into public.author_follows (follower_id, followed_id)
+select sender_id, receiver_id
+from public.friend_requests
+where status = 'accepted'
+on conflict (follower_id, followed_id) do nothing;
+
+insert into public.author_follows (follower_id, followed_id)
+select receiver_id, sender_id
+from public.friend_requests
+where status = 'accepted'
+on conflict (follower_id, followed_id) do nothing;

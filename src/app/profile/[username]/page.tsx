@@ -7,20 +7,18 @@ import { motion } from "framer-motion";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PublicStoryCard from "@/components/PublicStoryCard";
-import FriendButton from "@/components/FriendButton";
 import FollowButton from "@/components/FollowButton";
 import { createClient } from "@/lib/supabase/client";
-import { getFollowerCount } from "@/lib/follows";
+import {
+  FollowProfile,
+  getFollowerCount,
+  getFollowingCount,
+  listFollowers,
+  listFollowing,
+} from "@/lib/follows";
 import { useAuth } from "@/lib/AuthContext";
 import { useStories } from "@/lib/StoryContext";
 import { useSettingsModal } from "@/lib/SettingsModalContext";
-import {
-  FriendProfile,
-  IncomingRequest,
-  listFriends,
-  listIncomingRequests,
-  respondToFriendRequest,
-} from "@/lib/friends";
 import { TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
 
 // This used to be a straight copy-paste of the homepage (it never even
@@ -71,9 +69,10 @@ export default function PublicProfilePage() {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [identity, setIdentity] = useState<WriterIdentity | null>(null);
   const [stories, setStories] = useState<ProfileStoryRow[]>([]);
-  const [friends, setFriends] = useState<FriendProfile[]>([]);
-  const [incoming, setIncoming] = useState<IncomingRequest[]>([]);
+  const [followers, setFollowers] = useState<FollowProfile[]>([]);
+  const [following, setFollowing] = useState<FollowProfile[]>([]);
   const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -126,14 +125,16 @@ export default function PublicProfilePage() {
       .order("published_at", { ascending: false, nullsFirst: false });
     setStories((storyRows as ProfileStoryRow[]) ?? []);
 
-    const [friendList, incomingList, followers] = await Promise.all([
-      listFriends(profileRow.id),
-      user?.id === profileRow.id ? listIncomingRequests(profileRow.id) : Promise.resolve([]),
+    const [followerList, followingList, followerTotal, followingTotal] = await Promise.all([
+      listFollowers(profileRow.id),
+      listFollowing(profileRow.id),
       getFollowerCount(profileRow.id),
+      getFollowingCount(profileRow.id),
     ]);
-    setFriends(friendList);
-    setIncoming(incomingList);
-    setFollowerCount(followers);
+    setFollowers(followerList);
+    setFollowing(followingList);
+    setFollowerCount(followerTotal);
+    setFollowingCount(followingTotal);
 
     setLoading(false);
   }, [routeParam, router, user?.id]);
@@ -141,11 +142,6 @@ export default function PublicProfilePage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function handleRespond(requestId: string, status: "accepted" | "declined") {
-    await respondToFriendRequest(requestId, status);
-    load();
-  }
 
   const totalWords = stories.reduce((sum, s) => sum + (s.word_count ?? 0), 0);
   // Streak is a private writing-habit stat (draft-inclusive), so it's only
@@ -215,7 +211,6 @@ export default function PublicProfilePage() {
                     authorId={profile.id}
                     onChange={() => getFollowerCount(profile.id).then(setFollowerCount)}
                   />
-                  <FriendButton profileUserId={profile.id} onChange={load} />
                 </div>
               )}
             </div>
@@ -233,7 +228,7 @@ export default function PublicProfilePage() {
 
         <div
           className={`grid gap-3 sm:gap-4 my-10 max-w-md ${
-            isOwnProfile ? "grid-cols-4" : "grid-cols-3"
+            isOwnProfile ? "grid-cols-5" : "grid-cols-4"
           }`}
         >
           <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
@@ -245,8 +240,12 @@ export default function PublicProfilePage() {
             <p className="text-xs text-muted mt-1">words</p>
           </div>
           <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
-            <p className="font-mono text-2xl text-lamp">{friends.length}</p>
-            <p className="text-xs text-muted mt-1">friends</p>
+            <p className="font-mono text-2xl text-lamp">{followerCount}</p>
+            <p className="text-xs text-muted mt-1">followers</p>
+          </div>
+          <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
+            <p className="font-mono text-2xl text-lamp">{followingCount}</p>
+            <p className="text-xs text-muted mt-1">following</p>
           </div>
           {isOwnProfile && (
             <div className="bg-panel border border-parchment/10 rounded-xl px-4 py-4 text-center">
@@ -288,62 +287,40 @@ export default function PublicProfilePage() {
           )
         )}
 
-        {isOwnProfile && incoming.length > 0 && (
+        {followers.length > 0 && (
           <div className="mb-12">
             <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
-              Friend requests
+              Followers
             </p>
-            <div className="space-y-2">
-              {incoming.map((req) => (
-                <div
-                  key={req.requestId}
-                  className="flex items-center justify-between gap-3 bg-panel border border-parchment/10 rounded-xl px-4 py-3"
+            <div className="flex flex-wrap gap-3">
+              {followers.map((f) => (
+                <Link
+                  key={f.id}
+                  href={`/profile/${f.username}`}
+                  className="flex items-center gap-2 bg-panel border border-parchment/10 rounded-full pl-1.5 pr-3.5 py-1.5 hover:border-lamp/30 transition-colors"
                 >
-                  <Link
-                    href={`/profile/${req.from.username}`}
-                    className="flex items-center gap-3 min-w-0 group"
-                  >
-                    <span className="w-9 h-9 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {req.from.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={req.from.avatarUrl}
-                          alt={req.from.username}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        req.from.username.charAt(0).toUpperCase()
-                      )}
-                    </span>
-                    <span className="text-sm text-parchment truncate group-hover:text-lamp transition-colors">
-                      {req.from.username}
-                    </span>
-                  </Link>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleRespond(req.requestId, "accepted")}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-full bg-lamp text-ink"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => handleRespond(req.requestId, "declined")}
-                      className="text-xs px-3 py-1.5 rounded-full border border-parchment/15 text-muted hover:text-parchment transition-colors"
-                    >
-                      Decline
-                    </button>
-                  </div>
-                </div>
+                  <span className="w-7 h-7 rounded-full bg-lamp/15 border border-lamp/30 text-lamp text-[10px] font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {f.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={f.avatarUrl} alt={f.username} className="w-full h-full object-cover" />
+                    ) : (
+                      f.username.charAt(0).toUpperCase()
+                    )}
+                  </span>
+                  <span className="text-xs text-muted">{f.username}</span>
+                </Link>
               ))}
             </div>
           </div>
         )}
 
-        {friends.length > 0 && (
+        {following.length > 0 && (
           <div className="mb-12">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">Friends</p>
+            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-4">
+              Following
+            </p>
             <div className="flex flex-wrap gap-3">
-              {friends.map((f) => (
+              {following.map((f) => (
                 <Link
                   key={f.id}
                   href={`/profile/${f.username}`}

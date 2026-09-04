@@ -35,6 +35,10 @@ export type CommentRow = {
   user_id: string;
   body: string;
   created_at: string;
+  // null = üst seviye yorum, dolu = bir yorumun cevabı. Ağaç render'ı
+  // (tek seviye girinti) CommentsSection'da yapılıyor — burada sadece
+  // ham veri taşınıyor.
+  parent_comment_id: string | null;
 };
 
 type UseStoryReaderOptions = {
@@ -212,7 +216,7 @@ export function useStoryReader(id: string | undefined, options: UseStoryReaderOp
 
     const { data: commentRows, error } = await supabase
       .from("story_comments")
-      .select("id, story_id, user_id, body, created_at")
+      .select("id, story_id, user_id, body, created_at, parent_comment_id")
       .eq("story_id", storyId)
       .order("created_at", { ascending: true });
 
@@ -257,25 +261,40 @@ export function useStoryReader(id: string | undefined, options: UseStoryReaderOp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [story?.id]);
 
-  const handlePostComment = useCallback(async () => {
-    if (!story || !user) return;
-    const body = newComment.trim();
-    if (!body) return;
+  // parentCommentId: verilirse bu bir cevaptır (CommentsSection her
+  // zaman hedef yorumun kendi kök yorumunun id'sini gönderir, tek
+  // seviye derinlik böyle korunuyor).
+  // bodyOverride: cevap kutuları kendi yerel metin state'lerini
+  // tutuyor (ana yorum kutusundaki paylaşılan newComment'tan ayrı),
+  // o yüzden gönderilecek metni doğrudan parametre olarak alabiliyor.
+  const handlePostComment = useCallback(
+    async (parentCommentId?: string, bodyOverride?: string) => {
+      if (!story || !user) return;
+      const body = (bodyOverride ?? newComment).trim();
+      if (!body) return;
 
-    setPostingComment(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("story_comments")
-      .insert({ story_id: story.id, user_id: user.id, body });
-    setPostingComment(false);
+      setPostingComment(true);
+      const supabase = createClient();
+      const { error } = await supabase.from("story_comments").insert({
+        story_id: story.id,
+        user_id: user.id,
+        body,
+        parent_comment_id: parentCommentId ?? null,
+      });
+      setPostingComment(false);
 
-    if (error) {
-      console.error("Failed to post comment:", error.message);
-      return;
-    }
-    setNewComment("");
-    loadCommentsFor(story.id);
-  }, [story, user, newComment, loadCommentsFor]);
+      if (error) {
+        console.error("Failed to post comment:", error.message);
+        return;
+      }
+      // Sadece ana kutudan gönderildiyse (bodyOverride yoksa) onu
+      // temizle — cevap kutusunun kendi metnini temizlemek
+      // CommentsSection'ın işi.
+      if (bodyOverride === undefined) setNewComment("");
+      loadCommentsFor(story.id);
+    },
+    [story, user, newComment, loadCommentsFor]
+  );
 
   const handleDeleteComment = useCallback(async (commentId: string) => {
     const supabase = createClient();

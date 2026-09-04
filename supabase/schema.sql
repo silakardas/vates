@@ -106,3 +106,25 @@ select receiver_id, sender_id
 from public.friend_requests
 where status = 'accepted'
 on conflict (follower_id, followed_id) do nothing;
+
+-- ---------------------------------------------------------------------
+-- NOT: public.story_comments tablosunun kendisi bu dosyada tanımlı
+-- değil (muhtemelen Supabase SQL editöründen doğrudan oluşturulmuş,
+-- schema.sql'e hiç eklenmemiş) — bu yüzden burada sadece eksik olduğu
+-- bilinen kolonu ALTER TABLE ile ekliyoruz. schema.sql'in TAM olması
+-- gerektiği hatırlatması cevabın sonunda.
+--
+-- Yorum ağacı: bir yorum başka bir yorumun cevabıysa parent_comment_id
+-- o üst yorumu gösterir, null ise üst seviye (kendi başına) bir
+-- yorumdur. Tek seviye derinlik önceliği uygulama tarafında (Reply
+-- linkinin hangi id'yi hedeflediğinde) sağlanıyor: bir cevaba cevap
+-- verildiğinde bile parent_comment_id her zaman o cevabın kendi
+-- parent'ına (yani üst yoruma) yazılıyor, yorumun id'sine değil — bu
+-- yüzden veritabanı seviyesinde sonsuz iç içe geçmeyi engelleyen ayrı
+-- bir constraint'e gerek yok.
+alter table public.story_comments
+  add column if not exists parent_comment_id uuid
+    references public.story_comments (id) on delete cascade;
+
+create index if not exists story_comments_parent_idx
+  on public.story_comments (parent_comment_id);

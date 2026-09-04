@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import ReportButton from "@/components/ReportButton";
-import FollowButton from "@/components/FollowButton";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/lib/AuthContext";
-import { relativeTime } from "@/lib/timeAgo";
-import type { Chapter } from "@/lib/types";
-import { TAG_CATEGORIES, TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
+import StoryHeaderMeta from "@/components/discover/StoryHeaderMeta";
+import ChapterPillNav from "@/components/discover/ChapterPillNav";
+import ChapterStickyBar from "@/components/discover/ChapterStickyBar";
+import CommentsSection from "@/components/discover/CommentsSection";
+import { useStoryReader } from "@/lib/useStoryReader";
 import { getReadingProgress, saveReadingProgress } from "@/lib/readingProgress";
 
 // Same debounce window StoryContext uses for autosaving story edits
@@ -20,253 +17,94 @@ import { getReadingProgress, saveReadingProgress } from "@/lib/readingProgress";
 // not a shared contract between the two features.
 const READING_PROGRESS_DEBOUNCE_MS = 1500;
 
-// Row shape for this page's read — a public/owner-visible story, fetched
-// straight from Supabase. Intentionally not the full `Story` type from
-// StoryContext: that context only ever holds the signed-in user's own
-// stories (owner_id = auth.uid()), and this is a public reading page for
-// any is_public story, so it can't go through useStories()/getStory().
-type DiscoverStoryRow = TagColumns & {
-  id: string;
-  owner_id: string;
-  title: string;
-  type: "oneshot" | "series";
-  chapters: Chapter[] | null;
-  view_count: number | null;
-  like_count: number | null;
-  is_public: boolean;
-};
-
-type Author = {
-  id: string;
-  username: string;
-};
-
-type CommentRow = {
-  id: string;
-  story_id: string;
-  user_id: string;
-  body: string;
-  created_at: string;
-};
-
-export default function DiscoverStoryPage() {
+function DiscoverStoryPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  // ?view=all is the escape hatch back to the original "every chapter on
+  // one page" reading experience for a series — see the redirect effect
+  // below for the default (per-chapter) behavior.
+  const viewAll = searchParams.get("view") === "all";
 
-  const [story, setStory] = useState<DiscoverStoryRow | null>(null);
-  const [author, setAuthor] = useState<Author | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
+  const {
+    story,
+    author,
+    loading,
+    notFound,
+    isOwner,
+    chapters,
+    tags,
+    hasAnyTags,
+    liked,
+    likeCount,
+    handleLike,
+    comments,
+    commentAuthors,
+    commentsLoading,
+    newComment,
+    setNewComment,
+    postingComment,
+    handlePostComment,
+    handleDeleteComment,
+    user,
+  } = useStoryReader(id, {
+    // A series visited without ?view=all never actually renders its
+    // content here — it's redirected to a chapter route below, which
+    // will count its own view. Counting one here too would double it.
+    shouldCountView: (s) => s.type === "oneshot" || viewAll,
+    shouldLoadComments: (s) => s.type === "oneshot" || viewAll,
+  });
 
-  const [comments, setComments] = useState<CommentRow[]>([]);
-  const [commentAuthors, setCommentAuthors] = useState<Record<string, string>>({});
-  const [commentsLoading, setCommentsLoading] = useState(true);
-  const [newComment, setNewComment] = useState("");
-  const [postingComment, setPostingComment] = useState(false);
+  // Whether this render is just a pit-stop on the way to a chapter route.
+  // A series with zero chapters yet has nowhere to redirect to, so it
+  // falls through to the normal "no content yet" render below instead.
+  const shouldRedirectToChapter = !!story && story.type === "series" && !viewAll && chapters.length > 0;
 
   // Which chapter is currently in view, for the sticky chapter-nav bar
-  // and for reading-progress tracking below. Index into `chapters`
-  // (computed just below), not a chapter id, since "previous"/"next"
-  // are naturally index math.
+  // and for reading-progress tracking below (whole-story view only).
+  // Index into `chapters`, not a chapter id, since "previous"/"next" are
+  // naturally index math.
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
 
-  // Hoisted above the loading/notFound early returns (unlike the rest
-  // of this page's derived values) because the effects below need them,
-  // and hooks can't run after a conditional return.
-  const isOwner = story?.owner_id === user?.id;
-  const chapters = story?.chapters ?? [];
-
-  // Latest known scroll position, kept in a ref (not state) so the
-  // debounce timer and the unmount/visibility-change flush always read
-  // the freshest value without needing to be recreated on every scroll
-  // tick.
   const readingPositionRef = useRef<{ chapterId: string; scrollFraction: number } | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoredRef = useRef(false);
 
-  // Load the story once we know who (if anyone) is viewing — that's what
-  // decides whether this load should count as a view.
+  // Series, no ?view=all: send the reader straight to a chapter route —
+  // their saved position if they have one and it still points at a real
+  // chapter, otherwise the first chapter.
   useEffect(() => {
-    if (!id || authLoading) return;
+    if (!shouldRedirectToChapter || !story) return;
     let cancelled = false;
-    const supabase = createClient();
 
-    async function load() {
-      setLoading(true);
-      setNotFound(false);
-
-      // RLS ("stories are public-readable" for is_public=true, or
-      // "stories are owner-readable" for the owner regardless of
-      // is_public) decides whether this row is actually visible to
-      // whoever is asking — an anon visitor, another user, or the owner.
-      const { data: storyRow, error: storyError } = await supabase
-        .from("stories")
-        .select(
-          "id, owner_id, title, type, fandoms, relationships, tag_characters, additional_tags, tags, chapters, view_count, like_count, is_public"
-        )
-        .eq("id", id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (storyError || !storyRow) {
-        setStory(null);
-        setAuthor(null);
-        setLoading(false);
-        setNotFound(true);
-        return;
-      }
-
-      const { data: profileRow } = await supabase
-        .from("profiles")
-        .select("id, username")
-        .eq("id", storyRow.owner_id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      setStory(storyRow as DiscoverStoryRow);
-      setAuthor((profileRow as Author) ?? null);
-      setLikeCount(storyRow.like_count ?? 0);
-      setLoading(false);
-
-      // Has this visitor already liked it? Only meaningful when signed
-      // in — an anon visitor can't have a story_likes row.
+    (async () => {
+      let targetChapterId = chapters[0].id;
       if (user) {
-        const { data: likeRow } = await supabase
-          .from("story_likes")
-          .select("story_id")
-          .eq("story_id", storyRow.id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (!cancelled) {
-          setLiked(!!likeRow);
-        }
-      } else {
-        setLiked(false);
-      }
-
-      // Don't count the owner previewing their own story as a view.
-      const isOwner = storyRow.owner_id === user?.id;
-      if (!isOwner) {
-        const { error: rpcError } = await supabase.rpc("increment_story_view", {
-          p_story_id: storyRow.id,
-        });
-        if (rpcError) {
-          console.error("Failed to record view:", rpcError.message);
+        const progress = await getReadingProgress(user.id, story.id);
+        if (progress?.chapterId && chapters.some((c) => c.id === progress.chapterId)) {
+          targetChapterId = progress.chapterId;
         }
       }
-    }
+      if (!cancelled) {
+        router.replace(`/discover/${story.id}/chapter/${targetChapterId}`);
+      }
+    })();
 
-    load();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, authLoading, user?.id]);
-
-  async function handleLike() {
-    if (!story) return;
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    const supabase = createClient();
-    const wasLiked = liked;
-
-    // Optimistic UI: flip the heart and the count immediately, then
-    // reconcile with the server; roll back on failure.
-    setLiked(!wasLiked);
-    setLikeCount((c) => c + (wasLiked ? -1 : 1));
-
-    if (wasLiked) {
-      const { error } = await supabase
-        .from("story_likes")
-        .delete()
-        .eq("story_id", story.id)
-        .eq("user_id", user.id);
-      if (error) {
-        console.error("Failed to unlike story:", error.message);
-        setLiked(true);
-        setLikeCount((c) => c + 1);
-      }
-    } else {
-      const { error } = await supabase
-        .from("story_likes")
-        .insert({ story_id: story.id, user_id: user.id });
-      if (error) {
-        console.error("Failed to like story:", error.message);
-        setLiked(false);
-        setLikeCount((c) => c - 1);
-      }
-    }
-  }
-
-  // Loads (or reloads, after a post/delete) the comment list for the
-  // current story. A separate function rather than inlining it in an
-  // effect, since posting/deleting need to trigger the same reload.
-  async function loadComments(storyId: string) {
-    const supabase = createClient();
-    setCommentsLoading(true);
-
-    const { data: commentRows, error } = await supabase
-      .from("story_comments")
-      .select("id, story_id, user_id, body, created_at")
-      .eq("story_id", storyId)
-      .order("created_at", { ascending: true });
-
-    if (error || !commentRows) {
-      console.error("Failed to load comments:", error?.message);
-      setComments([]);
-      setCommentAuthors({});
-      setCommentsLoading(false);
-      return;
-    }
-
-    // story_comments.user_id points at auth.users, not at profiles, so
-    // PostgREST can't embed the author's name in the same query (same
-    // reason /discover's story list fetches authors separately).
-    const userIds = [...new Set(commentRows.map((c) => c.user_id))];
-    let authorMap: Record<string, string> = {};
-    if (userIds.length > 0) {
-      const { data: profileRows, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, username")
-        .in("id", userIds);
-      if (profilesError) {
-        console.error("Failed to load comment authors:", profilesError.message);
-      } else {
-        authorMap = Object.fromEntries(
-          (profileRows ?? []).map((p) => [p.id as string, p.username as string])
-        );
-      }
-    }
-
-    setComments(commentRows as CommentRow[]);
-    setCommentAuthors(authorMap);
-    setCommentsLoading(false);
-  }
-
-  useEffect(() => {
-    if (story?.id) loadComments(story.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story?.id]);
+  }, [shouldRedirectToChapter, story?.id, user?.id]);
 
   // Tracks which chapter is in view and how far through it the reader
   // has scrolled, persisting it (debounced) to reading_progress. Reuses
   // one rAF-throttled scroll listener for both the sticky chapter-nav
   // bar's "current chapter" and the actual progress save, rather than
-  // two separate listeners — this is the plain scroll+throttle approach
-  // (not IntersectionObserver), matching the debounced-write pattern
-  // StoryContext already uses for autosave (see PERSIST_DEBOUNCE_MS
-  // there / READING_PROGRESS_DEBOUNCE_MS here) rather than introducing a
-  // second, unrelated persistence mechanism.
+  // two separate listeners. Only relevant to the whole-story view — the
+  // per-chapter route (src/app/discover/[id]/chapter/[chapterId]) has
+  // its own, simpler single-chapter version of this.
   useEffect(() => {
-    if (!story || chapters.length === 0) return;
+    if (shouldRedirectToChapter || !story || chapters.length === 0) return;
     const storyId = story.id;
 
     function computePosition() {
@@ -342,14 +180,12 @@ export default function DiscoverStoryPage() {
       flush();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story?.id, chapters.length, user?.id, isOwner]);
+  }, [shouldRedirectToChapter, story?.id, chapters.length, user?.id, isOwner]);
 
   // Restores the reader's last position once, the first time this story
-  // (and this specific reader) are both known — a short delay lets the
-  // chapter content actually paint first, since scrollIntoView-style
-  // math needs real layout to measure against.
+  // (and this specific reader) are both known.
   useEffect(() => {
-    if (!story || !user || isOwner || chapters.length === 0) return;
+    if (shouldRedirectToChapter || !story || !user || isOwner || chapters.length === 0) return;
     if (restoredRef.current) return;
     restoredRef.current = true;
 
@@ -375,39 +211,9 @@ export default function DiscoverStoryPage() {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [story?.id, user?.id, isOwner, chapters.length]);
+  }, [shouldRedirectToChapter, story?.id, user?.id, isOwner, chapters.length]);
 
-  async function handlePostComment() {
-    if (!story || !user) return;
-    const body = newComment.trim();
-    if (!body) return;
-
-    setPostingComment(true);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("story_comments")
-      .insert({ story_id: story.id, user_id: user.id, body });
-    setPostingComment(false);
-
-    if (error) {
-      console.error("Failed to post comment:", error.message);
-      return;
-    }
-    setNewComment("");
-    loadComments(story.id);
-  }
-
-  async function handleDeleteComment(commentId: string) {
-    const supabase = createClient();
-    const { error } = await supabase.from("story_comments").delete().eq("id", commentId);
-    if (error) {
-      console.error("Failed to delete comment:", error.message);
-      return;
-    }
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
-  }
-
-  if (loading) {
+  if (loading || shouldRedirectToChapter) {
     return (
       <>
         <Header />
@@ -419,7 +225,7 @@ export default function DiscoverStoryPage() {
     );
   }
 
-  if (notFound || !story) {
+  if (notFound || !story || !tags) {
     return (
       <>
         <Header />
@@ -437,11 +243,9 @@ export default function DiscoverStoryPage() {
     );
   }
 
-  const tags = tagColumnsToStoryTags(story);
-  const hasAnyTags = TAG_CATEGORIES.some(({ key }) => tags[key].length > 0);
   // Only worth a jump-list once there's more than one chapter to jump
   // between — a oneshot (or a series with a single chapter so far) just
-  // reads top to bottom like today.
+  // reads top to bottom.
   const showChapterNav = story.type === "series" && chapters.length > 1;
 
   function scrollToChapter(chapterId: string) {
@@ -456,9 +260,8 @@ export default function DiscoverStoryPage() {
     el.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
   }
 
-  // The page's architecture (every chapter rendered on one page) is
-  // unchanged — these just move the reader between anchors already on
-  // the page, the same way the existing chapter pill-list above does.
+  // These just move the reader between anchors already on the page, the
+  // same way the chapter pill-list above does.
   const hasPrevChapter = currentChapterIndex > 0;
   const hasNextChapter = currentChapterIndex < chapters.length - 1;
 
@@ -476,94 +279,29 @@ export default function DiscoverStoryPage() {
     <>
       <Header />
       <main className="text-parchment px-5 py-10 sm:px-8 sm:py-14 max-w-3xl mx-auto">
-        <div className="flex items-center justify-between gap-3 mb-6">
-          <Link
-            href="/"
-            className="text-muted font-mono text-xs hover:text-lamp transition-colors whitespace-nowrap"
-          >
-            ← Back home
-          </Link>
-
-          {isOwner && (
-            <button
-              onClick={() => router.push(`/story/${story.id}`)}
-              className="text-xs font-mono text-lamp border border-lamp/30 rounded-lg px-3 py-1.5 hover:bg-lamp/5 transition-colors whitespace-nowrap"
-            >
-              ✎ Edit
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <h1 className="font-serif text-3xl sm:text-4xl">{story.title}</h1>
-          <ReportButton storyId={story.id} className="mt-2 flex-shrink-0" />
-        </div>
-
-        <div className="flex items-center gap-3 mb-2 flex-wrap">
-          <span className="w-7 h-7 rounded-full bg-lamp/20 border border-lamp/40 text-lamp text-xs font-mono flex items-center justify-center overflow-hidden flex-shrink-0">
-            {author?.username?.charAt(0).toUpperCase() ?? "?"}
-          </span>
-          {/* Not linked to a profile page yet — that lands in a later phase. */}
-          <span className="text-sm text-muted">{author?.username ?? "Unknown author"}</span>
-          {author && !isOwner && <FollowButton authorId={author.id} />}
-          <span className="text-faint">·</span>
-          <span className="text-xs font-mono text-faint flex items-center gap-1">
-            👁 {(story.view_count ?? 0).toLocaleString("en-US")}
-          </span>
-          <button
-            onClick={handleLike}
-            aria-pressed={liked}
-            className={`text-xs font-mono flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors ${
-              liked
-                ? "text-crimson border-crimson/40 bg-crimson/10"
-                : "text-faint border-parchment/10 hover:text-crimson hover:border-crimson/30"
-            }`}
-          >
-            <span>{liked ? "♥" : "♡"}</span>
-            {likeCount.toLocaleString("en-US")}
-          </button>
-        </div>
-
-        {hasAnyTags && (
-          <div className="space-y-2 mb-8">
-            {TAG_CATEGORIES.map(({ key, label }) => {
-              const values = tags[key];
-              if (values.length === 0) return null;
-              return (
-                <div key={key} className="flex flex-wrap items-baseline gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-wide text-faint">
-                    {label}:
-                  </span>
-                  {values.map((tag) => (
-                    <span key={tag} className="text-xs font-mono text-muted">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {!hasAnyTags && <div className="mb-8" />}
+        <StoryHeaderMeta
+          story={story}
+          author={author}
+          isOwner={isOwner}
+          liked={liked}
+          likeCount={likeCount}
+          onLike={handleLike}
+          onEdit={() => router.push(`/story/${story.id}`)}
+          tags={tags}
+          hasAnyTags={hasAnyTags}
+          viewToggle={
+            story.type === "series"
+              ? { href: `/discover/${story.id}`, label: "Read chapter by chapter" }
+              : null
+          }
+        />
 
         {showChapterNav && (
-          <div className="mb-6">
-            <p className="font-mono text-[10px] uppercase tracking-wide text-faint mb-2">
-              Chapters
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {chapters.map((chapter, i) => (
-                <button
-                  key={chapter.id}
-                  type="button"
-                  onClick={() => scrollToChapter(chapter.id)}
-                  className="text-xs font-mono px-2.5 py-1 rounded-full border border-parchment/10 text-muted hover:text-parchment hover:border-parchment/20 transition-colors"
-                >
-                  {i + 1}. {chapter.title || `Chapter ${i + 1}`}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ChapterPillNav
+            variant="scroll"
+            chapters={chapters}
+            onSelect={scrollToChapter}
+          />
         )}
 
         {/* Small sticky bar tracking whichever chapter is currently in
@@ -572,29 +310,18 @@ export default function DiscoverStoryPage() {
             to jump around. Kept deliberately compact — a full title bar
             here would compete with the page's own title for attention. */}
         {showChapterNav && (
-          <div className="sticky top-0 z-10 -mx-5 sm:-mx-8 mb-6 bg-ink/95 backdrop-blur border-b border-parchment/10 px-5 sm:px-8 py-2.5 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={goToPrevChapter}
-              disabled={!hasPrevChapter}
-              className="text-xs font-mono text-muted hover:text-lamp disabled:opacity-30 disabled:hover:text-muted transition-colors whitespace-nowrap"
-            >
-              ← Previous
-            </button>
-            <span className="text-xs font-mono text-faint truncate text-center">
-              Ch. {currentChapterIndex + 1}/{chapters.length}
-              {" · "}
-              {chapters[currentChapterIndex]?.title || `Chapter ${currentChapterIndex + 1}`}
-            </span>
-            <button
-              type="button"
-              onClick={goToNextChapter}
-              disabled={!hasNextChapter}
-              className="text-xs font-mono text-muted hover:text-lamp disabled:opacity-30 disabled:hover:text-muted transition-colors whitespace-nowrap"
-            >
-              Next →
-            </button>
-          </div>
+          <ChapterStickyBar
+            variant="scroll"
+            currentIndex={currentChapterIndex}
+            totalChapters={chapters.length}
+            currentTitle={
+              chapters[currentChapterIndex]?.title || `Chapter ${currentChapterIndex + 1}`
+            }
+            hasPrev={hasPrevChapter}
+            hasNext={hasNextChapter}
+            onPrev={goToPrevChapter}
+            onNext={goToNextChapter}
+          />
         )}
 
         <div className="bg-parchment text-[#3A3226] rounded-lg px-6 py-8 sm:px-10 sm:py-12">
@@ -640,82 +367,33 @@ export default function DiscoverStoryPage() {
           ))}
         </div>
 
-
-        <section className="mt-10">
-          <h2 className="font-serif text-xl mb-4">
-            Comments{comments.length > 0 ? ` (${comments.length})` : ""}
-          </h2>
-
-          {commentsLoading && (
-            <p className="text-muted text-sm mb-6">Loading comments…</p>
-          )}
-
-          {!commentsLoading && comments.length === 0 && (
-            <p className="text-muted text-sm mb-6">
-              No comments yet. Be the first to say something.
-            </p>
-          )}
-
-          {!commentsLoading && comments.length > 0 && (
-            <ul className="space-y-3 mb-6">
-              {comments.map((c) => (
-                <li
-                  key={c.id}
-                  className="bg-ink-soft border border-parchment/10 rounded-lg p-4"
-                >
-                  <div className="flex items-center justify-between gap-3 mb-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-mono text-parchment">
-                        {commentAuthors[c.user_id] ?? "Unknown"}
-                      </span>
-                      <span className="text-xs text-faint">
-                        {relativeTime(new Date(c.created_at).getTime())}
-                      </span>
-                    </div>
-                    {isOwner && (
-                      <button
-                        onClick={() => handleDeleteComment(c.id)}
-                        aria-label="Delete comment"
-                        className="text-faint hover:text-crimson transition-colors text-xs flex-shrink-0"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted leading-relaxed whitespace-pre-wrap mb-2">
-                    {c.body}
-                  </p>
-                  <ReportButton storyId={story.id} commentId={c.id} />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {user ? (
-            <div>
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Add a comment…"
-                rows={3}
-                className="w-full bg-ink-soft rounded-lg p-3 text-sm outline-none border border-parchment/10 focus:border-lamp/40 transition-colors placeholder:text-faint resize-none"
-              />
-              <button
-                onClick={handlePostComment}
-                disabled={postingComment || !newComment.trim()}
-                className="mt-2 text-xs font-mono text-lamp border border-lamp/30 rounded-lg px-3 py-1.5 hover:bg-lamp/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {postingComment ? "Posting…" : "Post comment"}
-              </button>
-            </div>
-          ) : (
-            <Link href="/login" className="text-lamp font-mono text-sm hover:underline">
-              Log in to comment
-            </Link>
-          )}
-        </section>
+        <CommentsSection
+          storyId={story.id}
+          isOwner={isOwner}
+          isSignedIn={!!user}
+          comments={comments}
+          commentAuthors={commentAuthors}
+          commentsLoading={commentsLoading}
+          newComment={newComment}
+          onNewCommentChange={setNewComment}
+          postingComment={postingComment}
+          onPostComment={handlePostComment}
+          onDeleteComment={handleDeleteComment}
+        />
       </main>
       <Footer />
     </>
+  );
+}
+
+// useSearchParams needs a Suspense boundary around it (Next.js bails a
+// page that reads it into fully client-side rendering otherwise), so the
+// actual page content lives in DiscoverStoryPage and this default export
+// is just the boundary — same pattern as /search.
+export default function DiscoverStoryPageBoundary() {
+  return (
+    <Suspense fallback={null}>
+      <DiscoverStoryPage />
+    </Suspense>
   );
 }

@@ -10,7 +10,9 @@ import ChapterPillNav from "@/components/discover/ChapterPillNav";
 import ChapterStickyBar from "@/components/discover/ChapterStickyBar";
 import CommentsSection from "@/components/discover/CommentsSection";
 import CharacterMoodboards from "@/components/discover/CharacterMoodboards";
+import AgeGateModal from "@/components/discover/AgeGateModal";
 import { useStoryReader } from "@/lib/useStoryReader";
+import { useAuth } from "@/lib/AuthContext";
 import { chapterLabelParts } from "@/lib/chapterLabel";
 import { getReadingProgress, saveReadingProgress } from "@/lib/readingProgress";
 
@@ -52,6 +54,8 @@ export default function ChapterReaderPage() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoredKeyRef = useRef<string | null>(null);
   const [progressReady, setProgressReady] = useState(false);
+  const [localAgeConfirmed, setLocalAgeConfirmed] = useState(false);
+  const { confirmAge } = useAuth();
   // Only a signed-in reader looking at someone else's story ever has a
   // saved position to restore — everyone else can render immediately.
   const needsProgressRestore = !!story && !!chapter && !!user && !isOwner;
@@ -180,6 +184,27 @@ export default function ChapterReaderPage() {
             ← Back to {story.title}
           </button>
         </main>
+        <Footer />
+      </>
+    );
+  }
+
+  const needsAgeGate = story.rating === "mature" && !(user?.ageConfirmed ?? localAgeConfirmed);
+
+  if (needsAgeGate) {
+    return (
+      <>
+        <Header />
+        <AgeGateModal
+          onConfirm={() => {
+            if (user) {
+              confirmAge();
+            } else {
+              setLocalAgeConfirmed(true);
+            }
+          }}
+          onDecline={() => router.push("/")}
+        />
         <Footer />
       </>
     );

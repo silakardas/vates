@@ -52,6 +52,14 @@ type User = {
   bio?: string;
   favoriteLine?: string;
   showWriterIdentity?: boolean;
+  // Both purely private preferences — never mirrored to `profiles` (see
+  // updateProfile/confirmAge), unlike bio/favoriteLine/showWriterIdentity
+  // which are mirrored for the public profile_writer_identity view.
+  // showMatureContent: the discover-feed opt-in toggle (Settings).
+  // ageConfirmed: set once, the first time the reader clicks through the
+  // age-gate popup on a mature story — never asked again after that.
+  showMatureContent?: boolean;
+  ageConfirmed?: boolean;
   // Unlike the fields above, username lives only in `profiles` (it needs
   // a database-level uniqueness guarantee auth.users' metadata can't
   // give it), so it isn't known synchronously from the session the way
@@ -78,8 +86,10 @@ type AuthContextType = {
     bio?: string;
     favoriteLine?: string;
     showWriterIdentity?: boolean;
+    showMatureContent?: boolean;
   }) => Promise<{ error?: string }>;
   updateUsername: (username: string) => Promise<{ error?: string }>;
+  confirmAge: () => Promise<{ error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -96,6 +106,8 @@ function toUser(session: Session | null): User | null {
     bio: (user_metadata?.bio as string | undefined) ?? "",
     favoriteLine: (user_metadata?.favorite_line as string | undefined) ?? "",
     showWriterIdentity: (user_metadata?.show_writer_identity as boolean | undefined) ?? false,
+    showMatureContent: (user_metadata?.show_mature_content as boolean | undefined) ?? false,
+    ageConfirmed: (user_metadata?.age_confirmed as boolean | undefined) ?? false,
   };
 }
 
@@ -235,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     bio?: string;
     favoriteLine?: string;
     showWriterIdentity?: boolean;
+    showMatureContent?: boolean;
   }) {
     if (!user) return { error: "Not logged in" };
 
@@ -244,6 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         bio: updates.bio ?? "",
         favorite_line: updates.favoriteLine ?? "",
         show_writer_identity: updates.showWriterIdentity ?? false,
+        show_mature_content: updates.showMatureContent ?? false,
       },
     });
 
@@ -272,6 +286,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return {};
+  }
+
+  // Called once, the first time a reader clicks through the age-gate
+  // popup on a mature story (see AgeGateModal) — after this, ageConfirmed
+  // is true for the rest of this account's lifetime and the popup never
+  // shows again. Deliberately separate from updateProfile: it's a
+  // one-time confirmation triggered from the reading page, not a
+  // Settings-form field, and merges into user_metadata without touching
+  // (or needing) any of updateProfile's other fields.
+  async function confirmAge() {
+    if (!user) return { error: "Not logged in" };
+    const { error } = await supabase.auth.updateUser({
+      data: { age_confirmed: true },
+    });
+    return { error: error?.message };
   }
 
   // Cooldown/format/reserved-word rules are enforced server-side by the

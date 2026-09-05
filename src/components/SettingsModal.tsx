@@ -100,6 +100,7 @@ export default function SettingsModal() {
   const [bio, setBio] = useState("");
   const [favoriteLine, setFavoriteLine] = useState("");
   const [showWriterIdentity, setShowWriterIdentity] = useState(false);
+  const [showMatureContent, setShowMatureContent] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(300);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export default function SettingsModal() {
       setBio(user.bio ?? "");
       setFavoriteLine(user.favoriteLine ?? "");
       setShowWriterIdentity(user.showWriterIdentity ?? false);
+      setShowMatureContent(user.showMatureContent ?? false);
       setDailyGoal(user.dailyGoal ?? 300);
       setUsername(user.username ?? "");
     }
@@ -180,6 +182,7 @@ export default function SettingsModal() {
       bio: bio.trim(),
       favoriteLine: favoriteLine.trim(),
       showWriterIdentity,
+      showMatureContent,
     });
     setSaving(false);
 
@@ -510,6 +513,25 @@ export default function SettingsModal() {
                             When on, your about and favorite line appear on your public profile —
                             visible to anyone, including people who aren&apos;t logged in. Off by
                             default, and off means neither shows there.
+                          </span>
+                        </span>
+                      </label>
+
+                      <label className="flex items-start gap-3 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={showMatureContent}
+                          onChange={(e) => setShowMatureContent(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-parchment/20 bg-ink-soft accent-lamp"
+                        />
+                        <span>
+                          <span className="block text-sm text-parchment">
+                            Show mature content
+                          </span>
+                          <span className="block text-xs text-muted mt-0.5">
+                            Off by default. When off, stories marked mature are left out of the
+                            discover feed entirely. Turning this on doesn&apos;t skip the age
+                            check on an individual mature story the first time you open one.
                           </span>
                         </span>
                       </label>

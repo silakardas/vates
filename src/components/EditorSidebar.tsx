@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Story, StoryTags, StoryType, TagCategory } from "@/lib/types";
+import { Story, StoryTags, StoryType, StoryRating, TagCategory } from "@/lib/types";
 import { StoryStatus, STATUS_CONFIG } from "@/lib/storyStatus";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -297,6 +297,31 @@ export default function EditorSidebar(props: {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
+                Rating
+              </label>
+              <div className="flex gap-2">
+                {(["general", "mature"] as StoryRating[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => updateStory(story.id, { rating: r })}
+                    className={`flex-1 text-sm py-2 rounded-lg border transition-colors capitalize ${
+                      (story.rating ?? "general") === r
+                        ? "bg-lamp/15 border-lamp/40 text-lamp"
+                        : "bg-ink-soft border-parchment/10 text-muted hover:text-parchment"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted mt-1.5">
+                Mature stories are hidden from the default discover feed and
+                gated behind an age check for readers.
+              </p>
             </div>
 
             {TAG_CATEGORIES.map(({ key, label, placeholder }) => (

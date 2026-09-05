@@ -29,7 +29,7 @@ export default function FollowingActivity() {
       return;
     }
     let cancelled = false;
-    getFollowedAuthorsRecentStories(user.id).then((result) => {
+    getFollowedAuthorsRecentStories(user.id, user.showMatureContent ?? false).then((result) => {
       if (!cancelled) {
         setStories(result);
         setLoading(false);

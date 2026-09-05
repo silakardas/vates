@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/AuthContext";
 import type { AuthorInfo, PublicStoryRow } from "@/lib/search";
 
 // Loads every publicly-shared story (plus their authors' usernames) the
@@ -12,6 +13,7 @@ import type { AuthorInfo, PublicStoryRow } from "@/lib/search";
 // public-readable" RLS policy, so it works for anon/logged-out visitors
 // too.
 export function useSearchStories(enabled: boolean) {
+  const { user } = useAuth();
   const [stories, setStories] = useState<PublicStoryRow[]>([]);
   const [authors, setAuthors] = useState<Record<string, AuthorInfo>>({});
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ export function useSearchStories(enabled: boolean) {
       const { data: storyRows, error: storiesError } = await supabase
         .from("stories")
         .select(
-          "id, owner_id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, status, created_at, published_at, cover_image_url"
+          "id, owner_id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, status, created_at, published_at, cover_image_url, rating"
         )
         .eq("is_public", true)
         .order("published_at", { ascending: false, nullsFirst: false })
@@ -80,5 +82,15 @@ export function useSearchStories(enabled: boolean) {
     };
   }, [enabled]);
 
-  return { stories, authors, loading };
+  // Default-safe: mature stories are fetched (so an owner or someone with
+  // the toggle on still gets full results without a second round-trip)
+  // but filtered out of what callers see unless the signed-in user has
+  // turned "Show mature content" on in Settings. Derived on every render
+  // (not inside the one-shot fetch effect above), so flipping the toggle
+  // updates the visible list immediately without a refetch.
+  const visibleStories = user?.showMatureContent
+    ? stories
+    : stories.filter((s) => s.rating !== "mature");
+
+  return { stories: visibleStories, authors, loading };
 }

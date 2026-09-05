@@ -190,3 +190,21 @@ create policy "story covers are self-deletable"
     bucket_id = 'story-covers'
     and auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- ---------------------------------------------------------------------
+-- İçerik derecelendirmesi: sadece iki seviye (general / mature).
+-- NOT NULL + DEFAULT 'general' olduğu için mevcut satırlar da otomatik
+-- 'general' olarak dolduruluyor (Postgres, NOT NULL + DEFAULT'lu bir
+-- kolon eklerken mevcut satırları backfill eder) — yani feed filtreleme
+-- tarafında "rating is null" durumunu ayrıca düşünmeye gerek yok.
+--
+-- "Show mature content" tercihi ve yaş onayı (age_confirmed) ise burada
+-- DEĞİL — showWriterIdentity/bio ile aynı yerde: auth.users'ın
+-- user_metadata'sında (bkz. src/lib/AuthContext.tsx). Sebebi: ikisi de
+-- tamamen özel, başka hiçbir kullanıcının görmesine gerek olmayan
+-- tercihler — public.profiles'a (zaten bu dosyada eksik olan) yeni bir
+-- kolon eklemenin bir faydası yok, üstelik profiles'ın gerçek şemasını
+-- bilmediğim için oraya körlemesine kolon eklemek riskli olurdu.
+alter table public.stories
+  add column if not exists rating text not null default 'general'
+    check (rating in ('general', 'mature'));

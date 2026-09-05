@@ -9,7 +9,9 @@ import ChapterPillNav from "@/components/discover/ChapterPillNav";
 import ChapterStickyBar from "@/components/discover/ChapterStickyBar";
 import CommentsSection from "@/components/discover/CommentsSection";
 import CharacterMoodboards from "@/components/discover/CharacterMoodboards";
+import AgeGateModal from "@/components/discover/AgeGateModal";
 import { useStoryReader } from "@/lib/useStoryReader";
+import { useAuth } from "@/lib/AuthContext";
 import { getReadingProgress, saveReadingProgress } from "@/lib/readingProgress";
 
 // Same debounce window StoryContext uses for autosaving story edits
@@ -66,6 +68,11 @@ function DiscoverStoryPage() {
   // Index into `chapters`, not a chapter id, since "previous"/"next" are
   // naturally index math.
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+  // Logged-out fallback only — a signed-in reader's confirmation lives on
+  // user.ageConfirmed (persisted via confirmAge), so this local state
+  // never even gets checked for them. See AgeGateModal.
+  const [localAgeConfirmed, setLocalAgeConfirmed] = useState(false);
+  const { confirmAge } = useAuth();
 
   const readingPositionRef = useRef<{ chapterId: string; scrollFraction: number } | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -239,6 +246,27 @@ function DiscoverStoryPage() {
             ← Back home
           </button>
         </main>
+        <Footer />
+      </>
+    );
+  }
+
+  const needsAgeGate = story.rating === "mature" && !(user?.ageConfirmed ?? localAgeConfirmed);
+
+  if (needsAgeGate) {
+    return (
+      <>
+        <Header />
+        <AgeGateModal
+          onConfirm={() => {
+            if (user) {
+              confirmAge();
+            } else {
+              setLocalAgeConfirmed(true);
+            }
+          }}
+          onDecline={() => router.push("/")}
+        />
         <Footer />
       </>
     );

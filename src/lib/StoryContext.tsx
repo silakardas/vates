@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry, TagCategory } from "./types";
+import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry, TagCategory, StoryRating } from "./types";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { moodboardExtensionFor, MAX_MOODBOARD_BYTES } from "@/lib/moodboardImage";
@@ -122,6 +122,7 @@ function newStory(): Story {
     notes: [],
     pinned: false,
     isPublic: false,
+    rating: "general",
   };
 }
 
@@ -148,6 +149,7 @@ type StoryRow = TagColumns & {
   published_at: string | null;
   is_pinned: boolean | null;
   cover_image_url: string | null;
+  rating: StoryRating | null;
 };
 
 function rowToStory(row: StoryRow): Story {
@@ -170,6 +172,7 @@ function rowToStory(row: StoryRow): Story {
     isPublic: row.is_public ?? false,
     publishedAt: row.published_at ? new Date(row.published_at).getTime() : undefined,
     coverImageUrl: row.cover_image_url ?? undefined,
+    rating: row.rating ?? "general",
   };
 }
 
@@ -197,6 +200,7 @@ function storyToRow(story: Story, ownerId: string) {
     published_at: story.publishedAt ? new Date(story.publishedAt).toISOString() : null,
     is_pinned: story.pinned ?? false,
     cover_image_url: story.coverImageUrl ?? null,
+    rating: story.rating ?? "general",
     // Intentionally not writing `tags` (the legacy column) — it's left as
     // whatever it was, and rowToStory merges it into additionalTags on
     // every load, so nothing is lost even though this write path no

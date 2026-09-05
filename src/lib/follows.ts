@@ -150,7 +150,8 @@ export async function listFollowing(userId: string): Promise<FollowProfile[]> {
 const FOLLOWED_STORIES_LIMIT = 6;
 
 export async function getFollowedAuthorsRecentStories(
-  currentUserId: string
+  currentUserId: string,
+  includeMature: boolean = false
 ): Promise<FollowedAuthorStory[]> {
   const supabase = createClient();
 
@@ -163,11 +164,22 @@ export async function getFollowedAuthorsRecentStories(
 
   const followedIds = follows.map((f) => f.followed_id as string);
 
-  const { data: storyRows, error } = await supabase
+  let query = supabase
     .from("stories")
-    .select("id, title, owner_id, published_at, view_count, like_count, cover_image_url")
+    .select("id, title, owner_id, published_at, view_count, like_count, cover_image_url, rating")
     .in("owner_id", followedIds)
-    .eq("is_public", true)
+    .eq("is_public", true);
+
+  // Default-safe, same as the discover feed (useSearchStories.ts):
+  // mature stories only show up here once the reader has turned "Show
+  // mature content" on in Settings. Filtered server-side (unlike the
+  // discover feed's client-side filter) so FOLLOWED_STORIES_LIMIT still
+  // reflects the number of stories actually shown.
+  if (!includeMature) {
+    query = query.eq("rating", "general");
+  }
+
+  const { data: storyRows, error } = await query
     .order("published_at", { ascending: false, nullsFirst: false })
     .limit(FOLLOWED_STORIES_LIMIT);
 

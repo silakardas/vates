@@ -18,6 +18,14 @@ export type Chapter = {
 
 export type StoryType = "oneshot" | "series";
 
+// Basic content rating — just two levels for now, no separate content
+// warning tags yet. Default is always "general"; a writer opts a story
+// into "mature" explicitly (see EditorSidebar). Mature stories are
+// excluded from the default discover feed (see useSearchStories.ts,
+// follows.ts) and gated behind a one-time age check on the reading page
+// itself (see AgeGateModal).
+export type StoryRating = "general" | "mature";
+
 export type MoodboardImage = {
   id: string;
   url: string;
@@ -90,6 +98,7 @@ export type Story = {
   isPublic: boolean;
   publishedAt?: number;
   coverImageUrl?: string; // optional — set via src/lib/storyCover.ts
+  rating: StoryRating; // defaults to "general" on creation
   characters: Character[];
   events: MapEvent[];
   connections: MapConnection[];

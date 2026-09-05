@@ -1,5 +1,5 @@
 import { TAG_CATEGORIES, TagColumns, flattenStoryTags, tagColumnsToStoryTags } from "@/lib/tags";
-import { StoryTags, TagCategory } from "@/lib/types";
+import { StoryTags, TagCategory, StoryRating } from "@/lib/types";
 import { StoryStatus } from "@/lib/storyStatus";
 
 // Row shape for a publicly-shared story, as read straight from Supabase —
@@ -20,6 +20,7 @@ export type PublicStoryRow = TagColumns & {
   created_at: string;
   published_at: string | null;
   cover_image_url: string | null;
+  rating: StoryRating;
 };
 
 export type AuthorInfo = { username: string };

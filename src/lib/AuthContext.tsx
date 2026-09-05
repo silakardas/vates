@@ -405,6 +405,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateAvatar,
         updateProfile,
         updateUsername,
+        confirmAge,
       }}
     >
       {children}

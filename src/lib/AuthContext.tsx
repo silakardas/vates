@@ -117,6 +117,31 @@ function toUser(session: Session | null): User | null {
   };
 }
 
+// toUser() only knows what's in the session (auth.users' own data +
+// user_metadata) — it has no way to know username/usernameChangedAt/
+// isAdmin, which live in `profiles` and are filled in afterward by
+// loadUsername(). onAuthStateChange fires on far more than just
+// login/logout though (token refresh, tab regaining focus, etc.), and
+// every one of those calls toUser() again — a BARE object with no
+// username/isAdmin. Without this merge, each of those events would
+// wipe those fields back to undefined for the moment between the event
+// firing and loadUsername() re-resolving, which is exactly the "goes
+// blank" glitch reported in Settings. So: same account as before ->
+// carry the profile-only fields over; only a genuinely different
+// account (or logging out) gets a clean slate.
+function mergeUser(prev: User | null, next: User | null): User | null {
+  if (!next) return null;
+  if (prev && prev.id === next.id) {
+    return {
+      ...next,
+      username: prev.username,
+      usernameChangedAt: prev.usernameChangedAt,
+      isAdmin: prev.isAdmin,
+    };
+  }
+  return next;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -148,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       const nextUser = toUser(data.session);
-      setUser(nextUser);
+      setUser((prev) => mergeUser(prev, nextUser));
       setLoading(false);
       if (nextUser) loadUsername(nextUser.id);
     });
@@ -157,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextUser = toUser(session);
-      setUser(nextUser);
+      setUser((prev) => mergeUser(prev, nextUser));
       if (nextUser) loadUsername(nextUser.id);
     });
 

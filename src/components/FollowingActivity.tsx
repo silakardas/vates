@@ -56,6 +56,7 @@ export default function FollowingActivity() {
               title: story.title,
               viewCount: story.viewCount,
               likeCount: story.likeCount,
+              coverImageUrl: story.coverImageUrl,
             }}
             authorUsername={story.author.username}
           />

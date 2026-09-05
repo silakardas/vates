@@ -8,6 +8,7 @@ import StoryHeaderMeta from "@/components/discover/StoryHeaderMeta";
 import ChapterPillNav from "@/components/discover/ChapterPillNav";
 import ChapterStickyBar from "@/components/discover/ChapterStickyBar";
 import CommentsSection from "@/components/discover/CommentsSection";
+import CharacterMoodboards from "@/components/discover/CharacterMoodboards";
 import { useStoryReader } from "@/lib/useStoryReader";
 import { getReadingProgress, saveReadingProgress } from "@/lib/readingProgress";
 
@@ -366,6 +367,8 @@ function DiscoverStoryPage() {
             </div>
           ))}
         </div>
+
+        <CharacterMoodboards characters={story.characters} />
 
         <CommentsSection
           storyId={story.id}

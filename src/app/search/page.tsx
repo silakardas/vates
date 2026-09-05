@@ -222,6 +222,7 @@ function SearchResults() {
                         tags: storyTags.get(story.id),
                         viewCount: story.view_count,
                         likeCount: story.like_count,
+                        coverImageUrl: story.cover_image_url,
                       }}
                       authorUsername={authors[story.owner_id]?.username}
                     />

@@ -18,6 +18,7 @@ export type FollowedAuthorStory = {
   publishedAt: string | null;
   viewCount: number | null;
   likeCount: number | null;
+  coverImageUrl: string | null;
   author: {
     id: string;
     username: string;
@@ -164,7 +165,7 @@ export async function getFollowedAuthorsRecentStories(
 
   const { data: storyRows, error } = await supabase
     .from("stories")
-    .select("id, title, owner_id, published_at, view_count, like_count")
+    .select("id, title, owner_id, published_at, view_count, like_count, cover_image_url")
     .in("owner_id", followedIds)
     .eq("is_public", true)
     .order("published_at", { ascending: false, nullsFirst: false })
@@ -190,6 +191,7 @@ export async function getFollowedAuthorsRecentStories(
     publishedAt: s.published_at as string | null,
     viewCount: s.view_count as number | null,
     likeCount: s.like_count as number | null,
+    coverImageUrl: s.cover_image_url as string | null,
     author: {
       id: s.owner_id as string,
       username: authorById.get(s.owner_id as string) ?? "Unknown",

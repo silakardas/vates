@@ -13,6 +13,7 @@ export type PublicStoryCardData = {
   tags?: StoryTags | null;
   viewCount?: number | null;
   likeCount?: number | null;
+  coverImageUrl?: string | null;
 };
 
 export default function PublicStoryCard({
@@ -47,6 +48,14 @@ export default function PublicStoryCard({
         className="absolute inset-0 rounded-xl"
         aria-label={story.title}
       />
+      {story.coverImageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, remote Supabase URL
+        <img
+          src={story.coverImageUrl}
+          alt=""
+          className="w-full aspect-[16/9] object-cover rounded-lg mb-3 pointer-events-none"
+        />
+      )}
       <div className="flex items-start justify-between gap-2 mb-1.5 pointer-events-none">
         <h3 className="font-serif text-lg group-hover:text-lamp transition-colors">
           {story.title}

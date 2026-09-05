@@ -30,7 +30,7 @@ export function useSearchStories(enabled: boolean) {
       const { data: storyRows, error: storiesError } = await supabase
         .from("stories")
         .select(
-          "id, owner_id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, status, created_at, published_at"
+          "id, owner_id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, status, created_at, published_at, cover_image_url"
         )
         .eq("is_public", true)
         .order("published_at", { ascending: false, nullsFirst: false })

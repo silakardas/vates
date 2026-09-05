@@ -19,6 +19,7 @@ export type PublicStoryRow = TagColumns & {
   status: StoryStatus;
   created_at: string;
   published_at: string | null;
+  cover_image_url: string | null;
 };
 
 export type AuthorInfo = { username: string };

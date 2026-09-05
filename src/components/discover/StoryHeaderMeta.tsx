@@ -54,6 +54,15 @@ export default function StoryHeaderMeta({
         )}
       </div>
 
+      {story.cover_image_url && (
+        // eslint-disable-next-line @next/next/no-img-element -- user-uploaded, remote Supabase URL
+        <img
+          src={story.cover_image_url}
+          alt=""
+          className="w-full max-h-80 object-cover rounded-xl border border-parchment/10 mb-6"
+        />
+      )}
+
       <div className="flex items-start justify-between gap-3 mb-3">
         <h1 className="font-serif text-3xl sm:text-4xl">{story.title}</h1>
         <ReportButton storyId={story.id} className="mt-2 flex-shrink-0" />

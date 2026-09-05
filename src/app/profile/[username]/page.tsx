@@ -55,6 +55,7 @@ type ProfileStoryRow = TagColumns & {
   word_count: number | null;
   published_at: string | null;
   created_at: string;
+  cover_image_url: string | null;
 };
 
 function formatJoinDate(iso: string) {
@@ -121,7 +122,7 @@ export default function PublicProfilePage() {
     const { data: storyRows } = await supabase
       .from("stories")
       .select(
-        "id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, published_at, created_at"
+        "id, title, description, fandoms, relationships, tag_characters, additional_tags, tags, view_count, like_count, word_count, published_at, created_at, cover_image_url"
       )
       .eq("owner_id", profileRow.id)
       .eq("is_public", true)
@@ -323,6 +324,7 @@ export default function PublicProfilePage() {
                     tags: tagColumnsToStoryTags(story),
                     viewCount: story.view_count,
                     likeCount: story.like_count,
+                    coverImageUrl: story.cover_image_url,
                   }}
                 />
               ))}

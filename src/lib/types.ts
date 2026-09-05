@@ -32,6 +32,11 @@ export type Character = {
   x?: number; // position on the story map canvas
   y?: number;
   moodboard?: MoodboardImage[];
+  // Opt-in: show this character's moodboard on the public story page.
+  // Undefined/false = private (default) — the moodboard stays workshop-only
+  // unless the writer explicitly turns this on. No separate DB column:
+  // characters is already a jsonb array, so this just rides along.
+  showMoodboardPublicly?: boolean;
 };
 
 // A plot point / scene the writer wants to track and link to characters
@@ -84,6 +89,7 @@ export type Story = {
   pinned?: boolean; // pinned to the top of the workshop list
   isPublic: boolean;
   publishedAt?: number;
+  coverImageUrl?: string; // optional — set via src/lib/storyCover.ts
   characters: Character[];
   events: MapEvent[];
   connections: MapConnection[];

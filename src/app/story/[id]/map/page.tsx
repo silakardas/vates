@@ -356,6 +356,26 @@ export default function StoryMapPage() {
                 {uploadError && (
                   <p className="text-crimson text-xs mt-1.5">{uploadError}</p>
                 )}
+                <label className="flex items-start gap-3 cursor-pointer select-none mt-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedCharacter.showMoodboardPublicly ?? false}
+                    onChange={(e) =>
+                      updateCharacter(story.id, selectedCharacter.id, {
+                        showMoodboardPublicly: e.target.checked,
+                      })
+                    }
+                    className="mt-0.5 w-4 h-4 rounded border-parchment/20 bg-ink-soft accent-lamp"
+                  />
+                  <span>
+                    <span className="block text-sm text-parchment">
+                      Show this moodboard on the public story page
+                    </span>
+                    <span className="block text-xs text-muted mt-0.5">
+                      Off by default — the rest of this character stays workshop-only either way.
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
           )}

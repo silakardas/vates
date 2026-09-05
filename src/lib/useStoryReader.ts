@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/AuthContext";
-import type { Chapter } from "@/lib/types";
+import type { Chapter, Character } from "@/lib/types";
 import { TAG_CATEGORIES, TagColumns, tagColumnsToStoryTags } from "@/lib/tags";
 
 // Row shape for the public reading routes — a public/owner-visible story,
@@ -22,6 +22,12 @@ export type DiscoverStoryRow = TagColumns & {
   view_count: number | null;
   like_count: number | null;
   is_public: boolean;
+  cover_image_url: string | null;
+  // Only characters with showMoodboardPublicly=true and a non-empty
+  // moodboard are actually shown (see CharacterMoodboards) — the rest
+  // of a character's fields (description, map position, etc.) stay
+  // workshop-only even though the whole array is fetched.
+  characters: Character[] | null;
 };
 
 export type StoryAuthor = {
@@ -103,7 +109,7 @@ export function useStoryReader(id: string | undefined, options: UseStoryReaderOp
       const { data: storyRow, error: storyError } = await supabase
         .from("stories")
         .select(
-          "id, owner_id, title, type, fandoms, relationships, tag_characters, additional_tags, tags, chapters, view_count, like_count, is_public"
+          "id, owner_id, title, type, fandoms, relationships, tag_characters, additional_tags, tags, chapters, view_count, like_count, is_public, cover_image_url, characters"
         )
         .eq("id", id)
         .maybeSingle();

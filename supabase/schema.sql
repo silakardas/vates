@@ -128,3 +128,65 @@ alter table public.story_comments
 
 create index if not exists story_comments_parent_idx
   on public.story_comments (parent_comment_id);
+
+-- ---------------------------------------------------------------------
+-- NOT: public.stories tablosu da bu dosyada tanımlı değil, aynı sebeple
+-- (story_comments'taki NOT'a bak). Kapak fotoğrafı için sadece eksik
+-- olduğu bilinen kolonu ekliyoruz.
+alter table public.stories
+  add column if not exists cover_image_url text;
+
+-- ---------------------------------------------------------------------
+-- Hikaye kapak fotoğrafları: avatars/moodboards bucket'larıyla aynı
+-- desen (5MB limit, jpg/png/webp/gif) — bkz. src/lib/avatar.ts,
+-- src/lib/moodboardImage.ts. NOT: o iki bucket'ın kendi tanımı da bu
+-- dosyada yok, o yüzden buradaki "birebir aynı" kısmı gerçek
+-- avatars/moodboards SQL'inden kopyalanmadı, sadece uygulamanın onları
+-- nasıl kullandığından (5MB, aynı 4 mime type, kullanıcı id'si ile
+-- başlayan path) geriye doğru yeniden inşa edildi. Gerçek
+-- avatars/moodboards policy'lerinden farklıysa bunu ona göre düzelt.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'story-covers',
+  'story-covers',
+  true,
+  5242880, -- 5MB
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- Path convention: `${owner_id}/${story_id}/cover.<ext>` (bkz.
+-- src/lib/storyCover.ts) — storage.foldername(name)[1] her zaman
+-- yükleyenin auth.uid()'i, bucket public olduğu için okuma herkese
+-- açık, yazma/silme sadece kendi klasörüyle sınırlı.
+drop policy if exists "story covers are publicly readable" on storage.objects;
+create policy "story covers are publicly readable"
+  on storage.objects for select
+  using (bucket_id = 'story-covers');
+
+drop policy if exists "story covers are self-insertable" on storage.objects;
+create policy "story covers are self-insertable"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'story-covers'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "story covers are self-updatable" on storage.objects;
+create policy "story covers are self-updatable"
+  on storage.objects for update
+  using (
+    bucket_id = 'story-covers'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "story covers are self-deletable" on storage.objects;
+create policy "story covers are self-deletable"
+  on storage.objects for delete
+  using (
+    bucket_id = 'story-covers'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );

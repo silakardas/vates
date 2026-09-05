@@ -5,6 +5,9 @@ import { motion } from "framer-motion";
 import { Story, StoryTags, StoryType, TagCategory } from "@/lib/types";
 import { StoryStatus, STATUS_CONFIG } from "@/lib/storyStatus";
 import { useStories } from "@/lib/StoryContext";
+import { useAuth } from "@/lib/AuthContext";
+import { createClient } from "@/lib/supabase/client";
+import { uploadStoryCover, removeStoryCover } from "@/lib/storyCover";
 import { relativeTime } from "@/lib/timeAgo";
 import { TAG_CATEGORIES, tagColumnsToStoryTags } from "@/lib/tags";
 import { computeTagsByCategory } from "@/lib/search";
@@ -29,6 +32,9 @@ export default function EditorSidebar(props: {
   const [versionLabel, setVersionLabel] = useState("");
   const [showPublishReview, setShowPublishReview] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const { user } = useAuth();
   const {
     updateStory,
     togglePublic,
@@ -106,6 +112,34 @@ export default function EditorSidebar(props: {
     } else {
       setShowPublishReview(true);
     }
+  }
+
+  async function handleCoverUpload(file: File) {
+    if (!user) return;
+    setCoverUploading(true);
+    setCoverError(null);
+    const supabase = createClient();
+    const { url, error } = await uploadStoryCover(supabase, user.id, story.id, file);
+    if (error) {
+      setCoverError(error);
+    } else {
+      updateStory(story.id, { coverImageUrl: url });
+    }
+    setCoverUploading(false);
+  }
+
+  async function handleCoverRemove() {
+    if (!user) return;
+    setCoverUploading(true);
+    setCoverError(null);
+    const supabase = createClient();
+    const { error } = await removeStoryCover(supabase, user.id, story.id);
+    if (error) {
+      setCoverError(error);
+    } else {
+      updateStory(story.id, { coverImageUrl: undefined });
+    }
+    setCoverUploading(false);
   }
 
   return (
@@ -189,6 +223,46 @@ export default function EditorSidebar(props: {
                   />
                 </span>
               </button>
+            </div>
+
+            <div>
+              <label className="block font-mono text-[10px] uppercase tracking-wide text-muted mb-2">
+                Cover image <span className="normal-case text-faint">(optional)</span>
+              </label>
+              {story.coverImageUrl ? (
+                <div className="relative group mb-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded, remote Supabase URL */}
+                  <img
+                    src={story.coverImageUrl}
+                    alt=""
+                    className="w-full aspect-[3/2] object-cover rounded-lg border border-parchment/10"
+                  />
+                  <button
+                    onClick={handleCoverRemove}
+                    disabled={coverUploading}
+                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-ink/80 text-parchment text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center disabled:opacity-60"
+                    aria-label="Remove cover image"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <label className="block text-center text-xs font-mono text-lamp border border-dashed border-lamp/30 rounded-lg py-4 cursor-pointer hover:bg-lamp/5 transition-colors mb-2">
+                  {coverUploading ? "Uploading…" : "+ Add cover image"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    disabled={coverUploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCoverUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+              {coverError && <p className="text-crimson text-xs">{coverError}</p>}
             </div>
 
             <div>

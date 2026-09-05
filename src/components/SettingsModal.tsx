@@ -154,9 +154,6 @@ export default function SettingsModal() {
 
   if (!isOpen || !user) return null;
 
-  const totalWords = stories.reduce((sum, s) => sum + totalWordCount(s), 0);
-  const streak = stories.reduce((max, s) => Math.max(max, s.streak ?? 0), 0);
-
   // Username can only change once a week — see the on_username_change
   // trigger in schema.sql, which is what actually enforces this; this is
   // just so the UI can disable the field and explain why ahead of time
@@ -369,7 +366,7 @@ export default function SettingsModal() {
               </nav>
 
               {/* Main panel */}
-              <div className="flex-1 min-w-0 grid gap-8 lg:grid-cols-[1fr_260px]">
+              <div className="flex-1 min-w-0">
                 <div className="bg-panel border border-parchment/10 rounded-xl px-6 py-6">
                   {tab === "Profile" && (
                     <form onSubmit={handleUsernameSave} className="space-y-3 pb-6 mb-6 border-b border-parchment/10">
@@ -711,54 +708,6 @@ export default function SettingsModal() {
                     </div>
                   )}
                 </div>
-
-                {/* Live preview + stats */}
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="bg-panel border border-parchment/10 rounded-xl px-6 py-6 h-fit"
-                >
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-faint mb-5">
-                    Preview
-                  </p>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-lamp/15 border border-lamp/30 text-lamp font-serif text-lg flex items-center justify-center overflow-hidden flex-shrink-0">
-                      {user.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.avatarUrl} alt={username} className="w-full h-full object-cover" />
-                      ) : (
-                        (username || "?").charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-serif text-parchment truncate">
-                        {username ? `@${username}` : "Unnamed"}
-                      </p>
-                      <p className="text-xs text-faint truncate">{user.email}</p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted italic leading-relaxed mb-6">
-                    {bio ? `"${bio}"` : "Nothing added yet — add one in the Profile tab."}
-                  </p>
-
-                  <div className="grid grid-cols-3 gap-2 text-center border-t border-parchment/10 pt-4">
-                    <div>
-                      <p className="font-mono text-lamp text-lg">{stories.length}</p>
-                      <p className="text-[10px] text-faint">stories</p>
-                    </div>
-                    <div>
-                      <p className="font-mono text-lamp text-lg">
-                        {totalWords.toLocaleString("en-US")}
-                      </p>
-                      <p className="text-[10px] text-faint">words</p>
-                    </div>
-                    <div>
-                      <p className="font-mono text-lamp text-lg">{streak || "—"}</p>
-                      <p className="text-[10px] text-faint">streak</p>
-                    </div>
-                  </div>
-                </motion.div>
               </div>
             </div>
           </div>

@@ -121,6 +121,16 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                     >
                       Settings
                     </button>
+                    {user.isAdmin && (
+                      <Link
+                        href="/admin/reports"
+                        role="menuitem"
+                        onClick={() => setAccountMenuOpen(false)}
+                        className="block px-4 py-2 text-sm text-lamp hover:text-lamp-bright hover:bg-parchment/5 transition-colors"
+                      >
+                        Reports
+                      </Link>
+                    )}
                     <div className="my-1 border-t border-parchment/10" />
                     <button
                       type="button"
@@ -240,6 +250,15 @@ export default function Header({ showSearch = true }: { showSearch?: boolean }) 
                   >
                     Settings
                   </button>
+                  {user.isAdmin && (
+                    <Link
+                      href="/admin/reports"
+                      onClick={() => setOpen(false)}
+                      className="py-2.5 text-lamp hover:text-lamp-bright transition-colors"
+                    >
+                      Reports
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={handleLogout}

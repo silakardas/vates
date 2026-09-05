@@ -69,6 +69,12 @@ type User = {
   // anymore — username is the only identity shown anywhere in the app.
   username?: string;
   usernameChangedAt?: string | null;
+  // Like username, this lives in `profiles` (not in session/metadata),
+  // so it's undefined until loadUsername() fills it in just after
+  // toUser() runs. Gates access to /admin/reports client-side — the
+  // real enforcement is the is_admin() check in RLS policies
+  // (see supabase/schema.sql), this is just for UI/redirects.
+  isAdmin?: boolean;
 };
 
 type AuthContextType = {
@@ -123,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadUsername(userId: string) {
     const { data } = await supabase
       .from("profiles")
-      .select("username, username_changed_at")
+      .select("username, username_changed_at, is_admin")
       .eq("id", userId)
       .maybeSingle();
     if (!data) return;
@@ -133,6 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...prev,
             username: data.username as string,
             usernameChangedAt: data.username_changed_at as string | null,
+            isAdmin: (data.is_admin as boolean | undefined) ?? false,
           }
         : prev
     );

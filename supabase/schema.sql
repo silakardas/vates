@@ -208,3 +208,129 @@ create policy "story covers are self-deletable"
 alter table public.stories
   add column if not exists rating text not null default 'general'
     check (rating in ('general', 'mature'));
+
+-- ---------------------------------------------------------------------
+-- Admin: profiles.is_admin — raporları görüp yönetebilecek hesapları
+-- işaretlemek için tek bir boolean. Ayrı bir "admins" tablosu yerine
+-- profiles üzerine kolon eklemek tercih edildi: her kullanıcının zaten
+-- bir profiles satırı var ve bu, başka hiçbir yerde tutulmayan tek bir
+-- bilgi. Varsayılan false — hangi hesabın admin olacağı bu migration'la
+-- OTOMATİK belirlenmiyor, dosyanın en altındaki NOT'a bakın.
+alter table public.profiles
+  add column if not exists is_admin boolean not null default false;
+
+-- Var olan RLS policy'lerinin çoğu "auth.uid() = owner_id" gibi sahiplik
+-- kontrolleri yapıyor; admin'in SAHİBİ olmadığı hikaye/yorum satırlarına
+-- da erişebilmesi gerektiği her yerde ayrı bir alt-sorgu yazmak yerine
+-- tek bir yardımcı fonksiyon tanımlıyoruz. security definer: fonksiyonun
+-- içindeki "select ... from profiles" sorgusu bu fonksiyonu çağıran
+-- policy'nin değil, fonksiyonun sahibinin yetkisiyle çalışır — profiles
+-- üzerindeki RLS'in bu kontrolü dolaylı olarak bozmasını engeller.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select is_admin from public.profiles where id = auth.uid()),
+    false
+  );
+$$;
+
+-- ---------------------------------------------------------------------
+-- Hikaye/yorum raporları: ReportButton (src/components/ReportButton.tsx)
+-- buraya insert atıyor; admin sayfası (src/app/admin/reports/page.tsx)
+-- burayı okuyup status günceliyor veya ilgili hikaye/yorumu siliyor.
+--
+-- Tam olarak ikisinden biri anlamlıdır: comment_id null ise hikayenin
+-- kendisi raporlanmıştır, doluysa o hikaye içindeki belirli bir yorum
+-- raporlanmıştır (story_id yine de dolu kalır — hangi hikayenin altında
+-- olduğunu ayrıca sorgulamadan bilmek için).
+--
+-- reporter_id nullable: ReportButton giriş yapmamış ziyaretçilere de
+-- gösteriliyor (user?.id ?? null), yani anonim raporlar da mümkün.
+create extension if not exists pgcrypto;
+
+create table if not exists public.story_reports (
+  id uuid primary key default gen_random_uuid(),
+  story_id uuid not null references public.stories (id) on delete cascade,
+  comment_id uuid references public.story_comments (id) on delete cascade,
+  reporter_id uuid references auth.users (id) on delete set null,
+  reason text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'dismissed', 'actioned')),
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references auth.users (id) on delete set null
+);
+
+create index if not exists story_reports_status_idx
+  on public.story_reports (status, created_at desc);
+create index if not exists story_reports_story_idx
+  on public.story_reports (story_id);
+
+alter table public.story_reports enable row level security;
+
+-- Herkes (giriş yapmış ya da anonim) rapor gönderebilir; reporter_id ya
+-- kendi auth.uid()'i ya da null olmak zorunda — başkası adına rapor
+-- atılamaz.
+drop policy if exists "reports are insertable by anyone" on public.story_reports;
+create policy "reports are insertable by anyone"
+  on public.story_reports for insert
+  with check (reporter_id is null or reporter_id = auth.uid());
+
+-- Raporları sadece adminler görebilir — ne raporlayan kişi ne de
+-- raporlanan hikayenin/yorumun sahibi kendi üstündeki raporu görmemeli.
+drop policy if exists "reports are readable by admins only" on public.story_reports;
+create policy "reports are readable by admins only"
+  on public.story_reports for select
+  using (public.is_admin());
+
+drop policy if exists "reports are updatable by admins only" on public.story_reports;
+create policy "reports are updatable by admins only"
+  on public.story_reports for update
+  using (public.is_admin())
+  with check (public.is_admin());
+
+-- ---------------------------------------------------------------------
+-- Admin moderasyonu: adminlerin, sahibi olmadıkları hikaye/yorumları da
+-- (raporlanmış olanlar dahil) görebilmesi ve gerekirse gizleyip/silmesi
+-- için stories ve story_comments üzerine EK, permissive policy'ler.
+-- Bunlar var olan "sahibi kendi satırını görebilir/düzenleyebilir"
+-- policy'lerinin yerine geçmiyor, onlara OR'lanarak ekleniyor — yani var
+-- olan hiçbir davranışı bozmadan admin için ayrı bir erişim yolu açıyor.
+drop policy if exists "admins can view all stories" on public.stories;
+create policy "admins can view all stories"
+  on public.stories for select
+  using (public.is_admin());
+
+drop policy if exists "admins can update any story" on public.stories;
+create policy "admins can update any story"
+  on public.stories for update
+  using (public.is_admin())
+  with check (public.is_admin());
+
+drop policy if exists "admins can delete any story" on public.stories;
+create policy "admins can delete any story"
+  on public.stories for delete
+  using (public.is_admin());
+
+drop policy if exists "admins can view all comments" on public.story_comments;
+create policy "admins can view all comments"
+  on public.story_comments for select
+  using (public.is_admin());
+
+drop policy if exists "admins can delete any comment" on public.story_comments;
+create policy "admins can delete any comment"
+  on public.story_comments for delete
+  using (public.is_admin());
+
+-- ---------------------------------------------------------------------
+-- NOT: is_admin varsayılan olarak false — bu migration'ı çalıştırdıktan
+-- SONRA, kendi hesabını admin yapmak için Supabase SQL editöründen bir
+-- kez şunu çalıştır (kendi e-postanla):
+--
+--   update public.profiles set is_admin = true
+--   where id = (select id from auth.users where email = 'senin@eposta.com');

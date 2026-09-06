@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Story, StoryTags, StoryType, StoryRating, TagCategory } from "@/lib/types";
+import { Story, StoryTags, StoryType, StoryRating, TagCategory, DEFAULT_NOTE_CATEGORY } from "@/lib/types";
 import { StoryStatus, STATUS_CONFIG } from "@/lib/storyStatus";
 import { useStories } from "@/lib/StoryContext";
 import { useAuth } from "@/lib/AuthContext";
@@ -32,6 +32,11 @@ export default function EditorSidebar(props: {
   const [versionLabel, setVersionLabel] = useState("");
   const [showPublishReview, setShowPublishReview] = useState(false);
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+  const [activeNoteCategory, setActiveNoteCategory] = useState<string>(DEFAULT_NOTE_CATEGORY);
+  const [addingNoteCategory, setAddingNoteCategory] = useState(false);
+  const [newNoteCategoryInput, setNewNoteCategoryInput] = useState("");
+  const [editingNoteCategory, setEditingNoteCategory] = useState<string | null>(null);
+  const [editingNoteCategoryInput, setEditingNoteCategoryInput] = useState("");
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -47,6 +52,9 @@ export default function EditorSidebar(props: {
     addNote,
     updateNote,
     removeNote,
+    addNoteCategory,
+    renameNoteCategory,
+    removeNoteCategory,
     saveVersion,
     restoreVersion,
   } = useStories();
@@ -86,6 +94,58 @@ export default function EditorSidebar(props: {
       else next.add(noteId);
       return next;
     });
+  }
+
+  // Note folders: story.noteCategories is always non-empty in practice
+  // (StoryContext guarantees at least one), but fall back defensively.
+  const noteCategories = story.noteCategories.length ? story.noteCategories : [DEFAULT_NOTE_CATEGORY];
+  const currentNoteCategory = noteCategories.includes(activeNoteCategory)
+    ? activeNoteCategory
+    : noteCategories[0];
+  const notesInCategory = story.notes.filter((n) => n.category === currentNoteCategory);
+
+  function handleAddNoteCategory(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newNoteCategoryInput.trim();
+    if (!name) {
+      setAddingNoteCategory(false);
+      return;
+    }
+    addNoteCategory(story.id, name);
+    setActiveNoteCategory(name);
+    setNewNoteCategoryInput("");
+    setAddingNoteCategory(false);
+  }
+
+  function handleRemoveNoteCategory(name: string) {
+    if (noteCategories.length <= 1) return;
+    const count = story.notes.filter((n) => n.category === name).length;
+    const message =
+      count > 0
+        ? `Delete the "${name}" folder? Its ${count} note${count === 1 ? "" : "s"} will move to "${noteCategories.find((c) => c !== name) ?? DEFAULT_NOTE_CATEGORY}".`
+        : `Delete the "${name}" folder?`;
+    if (!window.confirm(message)) return;
+    removeNoteCategory(story.id, name);
+    if (currentNoteCategory === name) {
+      setActiveNoteCategory(noteCategories.find((c) => c !== name) ?? DEFAULT_NOTE_CATEGORY);
+    }
+  }
+
+  function startEditingNoteCategory(name: string) {
+    setEditingNoteCategory(name);
+    setEditingNoteCategoryInput(name);
+  }
+
+  function commitEditingNoteCategory() {
+    if (editingNoteCategory) {
+      const trimmed = editingNoteCategoryInput.trim();
+      if (trimmed && trimmed !== editingNoteCategory) {
+        renameNoteCategory(story.id, editingNoteCategory, trimmed);
+        if (currentNoteCategory === editingNoteCategory) setActiveNoteCategory(trimmed);
+      }
+    }
+    setEditingNoteCategory(null);
+    setEditingNoteCategoryInput("");
   }
 
   function handleAddCharacter() {
@@ -417,12 +477,99 @@ export default function EditorSidebar(props: {
 
         {tab === "Notes" && (
           <div className="space-y-3">
-            {story.notes.length === 0 && (
+            {/* Folder tabs — organize notes into categories like "Plot ideas"
+                or "Scene snippets". Always at least one folder exists. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {noteCategories.map((cat) => {
+                const isActive = cat === currentNoteCategory;
+                const count = story.notes.filter((n) => n.category === cat).length;
+                if (editingNoteCategory === cat) {
+                  return (
+                    <input
+                      key={cat}
+                      autoFocus
+                      value={editingNoteCategoryInput}
+                      onChange={(e) => setEditingNoteCategoryInput(e.target.value)}
+                      onBlur={commitEditingNoteCategory}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitEditingNoteCategory();
+                        } else if (e.key === "Escape") {
+                          setEditingNoteCategory(null);
+                          setEditingNoteCategoryInput("");
+                        }
+                      }}
+                      className="w-28 bg-ink border border-lamp/40 rounded-full px-3 py-1 text-[11px] font-mono outline-none"
+                    />
+                  );
+                }
+                return (
+                  <div
+                    key={cat}
+                    className={`group flex items-center gap-1 rounded-full pl-3 pr-1.5 py-1 text-[11px] font-mono border transition-colors ${
+                      isActive
+                        ? "bg-lamp/15 border-lamp/40 text-lamp"
+                        : "bg-ink-soft border-parchment/10 text-muted hover:border-parchment/25"
+                    }`}
+                  >
+                    <button
+                      onClick={() => setActiveNoteCategory(cat)}
+                      onDoubleClick={() => startEditingNoteCategory(cat)}
+                      title="Double-click to rename"
+                      className="flex items-center gap-1"
+                    >
+                      <span>{cat}</span>
+                      {count > 0 && <span className="opacity-60">{count}</span>}
+                    </button>
+                    {noteCategories.length > 1 && (
+                      <button
+                        onClick={() => handleRemoveNoteCategory(cat)}
+                        aria-label={`Delete folder ${cat}`}
+                        title="Delete folder"
+                        className="opacity-0 group-hover:opacity-60 hover:!opacity-100 hover:text-crimson transition-opacity px-0.5"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {addingNoteCategory ? (
+                <form onSubmit={handleAddNoteCategory} className="flex items-center">
+                  <input
+                    autoFocus
+                    value={newNoteCategoryInput}
+                    onChange={(e) => setNewNoteCategoryInput(e.target.value)}
+                    onBlur={() => {
+                      if (!newNoteCategoryInput.trim()) setAddingNoteCategory(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setAddingNoteCategory(false);
+                        setNewNoteCategoryInput("");
+                      }
+                    }}
+                    placeholder="Folder name"
+                    className="w-28 bg-ink border border-lamp/40 rounded-full px-3 py-1 text-[11px] font-mono outline-none"
+                  />
+                </form>
+              ) : (
+                <button
+                  onClick={() => setAddingNoteCategory(true)}
+                  className="rounded-full px-3 py-1 text-[11px] font-mono border border-dashed border-lamp/30 text-lamp hover:bg-lamp/5 transition-colors"
+                >
+                  + Folder
+                </button>
+              )}
+            </div>
+
+            {notesInCategory.length === 0 && (
               <p className="text-xs text-faint leading-relaxed mb-1">
-                No notes yet. Jot down worldbuilding, plot threads, things to remember...
+                No notes in this folder yet. Jot down worldbuilding, plot threads, scene ideas...
               </p>
             )}
-            {story.notes.map((n) => (
+            {notesInCategory.map((n) => (
               <motion.div
                 key={n.id}
                 initial={{ opacity: 0, y: 6 }}
@@ -436,6 +583,21 @@ export default function EditorSidebar(props: {
                     placeholder="Note title"
                     className="flex-1 min-w-0 bg-transparent font-serif text-sm outline-none border-b border-transparent focus:border-lamp/40 transition-colors"
                   />
+                  {noteCategories.length > 1 && (
+                    <select
+                      value={n.category}
+                      onChange={(e) => updateNote(story.id, n.id, { category: e.target.value })}
+                      aria-label={`Move note ${n.title} to folder`}
+                      title="Move to folder"
+                      className="bg-ink border border-parchment/10 rounded-md text-[10px] font-mono text-muted outline-none px-1 py-0.5 max-w-[5.5rem]"
+                    >
+                      {noteCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     onClick={() => toggleNoteExpanded(n.id)}
                     className="text-faint hover:text-lamp transition-colors text-xs mt-0.5"
@@ -472,7 +634,7 @@ export default function EditorSidebar(props: {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => addNote(story.id)}
+              onClick={() => addNote(story.id, currentNoteCategory)}
               className="w-full text-xs font-mono text-lamp border border-dashed border-lamp/30 rounded-lg py-2.5 hover:bg-lamp/5 transition-colors"
             >
               + Add note

@@ -65,11 +65,17 @@ export type MapConnection = {
   toId: string;
 };
 
+// Notes can be organized into folder-like categories (e.g. "Plot ideas",
+// "Scene snippets", "Worldbuilding"). Every story always has at least the
+// default category so there's somewhere for uncategorized notes to live.
+export const DEFAULT_NOTE_CATEGORY = "General";
+
 export type NoteEntry = {
   id: string;
   title: string;
   content: string;
   updatedAt: number;
+  category: string; // folder this note belongs to; defaults to DEFAULT_NOTE_CATEGORY
 };
 
 // AO3-style tag categories, kept simple: no separate tags table, just the
@@ -103,6 +109,7 @@ export type Story = {
   events: MapEvent[];
   connections: MapConnection[];
   notes: NoteEntry[]; // titled scratchpad notes for the story
+  noteCategories: string[]; // ordered list of note folders, incl. empty ones the writer created
 };
 
 export function totalWordCount(story: Story): number {

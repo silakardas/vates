@@ -333,4 +333,4 @@ create policy "admins can delete any comment"
 -- kez şunu çalıştır (kendi e-postanla):
 --
 --   update public.profiles set is_admin = true
---   where id = (select id from auth.users where email = 'senin@eposta.com');
+--   where id = (select id from auth.users where email = 'silaakardas@gmail.com');

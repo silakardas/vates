@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
-import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry, TagCategory, StoryRating } from "./types";
+import { Story, Chapter, Character, ChapterVersion, MapEvent, MapConnection, MoodboardImage, NoteEntry, TagCategory, StoryRating, DEFAULT_NOTE_CATEGORY } from "./types";
 import { useAuth } from "./AuthContext";
 import { createClient } from "@/lib/supabase/client";
 import { moodboardExtensionFor, MAX_MOODBOARD_BYTES } from "@/lib/moodboardImage";
@@ -54,31 +54,66 @@ function newCharacter(): Character {
   };
 }
 
-function newNote(): NoteEntry {
+function newNote(category?: string): NoteEntry {
   return {
     id: crypto.randomUUID(),
     title: "New note",
     content: "",
     updatedAt: Date.now(),
+    category: category?.trim() || DEFAULT_NOTE_CATEGORY,
   };
 }
 
-// The `notes` DB column stores either legacy plain text (a single freeform
-// scratchpad) or, going forward, a JSON-encoded NoteEntry[]. Normalize both
-// into NoteEntry[] so the rest of the app only deals with one shape.
-function parseNotes(raw: string | null | undefined): NoteEntry[] {
-  if (!raw) return [];
+type ParsedNotes = { notes: NoteEntry[]; categories: string[] };
+
+// Given a set of notes (which may reference categories not yet in `known`),
+// build the full ordered category list: known categories first, then any
+// extra categories the notes reference, always including the default.
+function collectCategories(notes: NoteEntry[], known: string[]): string[] {
+  const list = known.length ? [...known] : [];
+  if (!list.includes(DEFAULT_NOTE_CATEGORY)) list.unshift(DEFAULT_NOTE_CATEGORY);
+  for (const n of notes) {
+    if (!list.includes(n.category)) list.push(n.category);
+  }
+  return list;
+}
+
+// The `notes` DB column stores one of three shapes, oldest to newest:
+//   1. legacy plain text — a single freeform scratchpad string
+//   2. a JSON-encoded NoteEntry[] (no folders yet)
+//   3. a JSON-encoded { categories: string[]; notes: NoteEntry[] } (current)
+// Normalize all three into { notes, categories } so the rest of the app
+// only deals with one shape.
+function parseNotes(raw: string | null | undefined): ParsedNotes {
+  if (!raw) return { notes: [], categories: [DEFAULT_NOTE_CATEGORY] };
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed
+      const notes = parsed
         .filter((n) => n && typeof n === "object" && typeof n.id === "string")
         .map((n) => ({
           id: n.id,
           title: typeof n.title === "string" ? n.title : "Untitled note",
           content: typeof n.content === "string" ? n.content : "",
           updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : Date.now(),
+          category: typeof n.category === "string" && n.category.trim() ? n.category : DEFAULT_NOTE_CATEGORY,
         }));
+      return { notes, categories: collectCategories(notes, []) };
+    }
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.notes)) {
+      const notes = parsed.notes
+        .filter((n: unknown) => n && typeof n === "object" && typeof (n as { id?: unknown }).id === "string")
+        .map((n: Record<string, unknown>) => ({
+          id: n.id as string,
+          title: typeof n.title === "string" ? n.title : "Untitled note",
+          content: typeof n.content === "string" ? n.content : "",
+          updatedAt: typeof n.updatedAt === "number" ? n.updatedAt : Date.now(),
+          category: typeof n.category === "string" && n.category.trim() ? n.category : DEFAULT_NOTE_CATEGORY,
+        }));
+      const known = Array.isArray(parsed.categories)
+        ? parsed.categories.filter((c: unknown): c is string => typeof c === "string" && c.trim().length > 0)
+        : [];
+      return { notes, categories: collectCategories(notes, known) };
     }
   } catch {
     // Not JSON — fall through to legacy plain-text handling below.
@@ -86,14 +121,18 @@ function parseNotes(raw: string | null | undefined): NoteEntry[] {
   // Legacy scratchpad: a single plain-text string. Wrap it as one note so
   // existing notes aren't lost when a story is opened for the first time
   // after this change.
-  return [
-    {
-      id: crypto.randomUUID(),
-      title: "Notes",
-      content: raw,
-      updatedAt: Date.now(),
-    },
-  ];
+  return {
+    notes: [
+      {
+        id: crypto.randomUUID(),
+        title: "Notes",
+        content: raw,
+        updatedAt: Date.now(),
+        category: DEFAULT_NOTE_CATEGORY,
+      },
+    ],
+    categories: [DEFAULT_NOTE_CATEGORY],
+  };
 }
 
 function newEvent(): MapEvent {
@@ -120,6 +159,7 @@ function newStory(): Story {
     events: [],
     connections: [],
     notes: [],
+    noteCategories: [DEFAULT_NOTE_CATEGORY],
     pinned: false,
     isPublic: false,
     rating: "general",
@@ -153,6 +193,7 @@ type StoryRow = TagColumns & {
 };
 
 function rowToStory(row: StoryRow): Story {
+  const parsedNotes = parseNotes(row.notes);
   return {
     id: row.id,
     title: row.title,
@@ -167,7 +208,8 @@ function rowToStory(row: StoryRow): Story {
     characters: row.characters ?? [],
     events: row.events ?? [],
     connections: row.connections ?? [],
-    notes: parseNotes(row.notes),
+    notes: parsedNotes.notes,
+    noteCategories: parsedNotes.categories,
     pinned: row.is_pinned ?? false,
     isPublic: row.is_public ?? false,
     publishedAt: row.published_at ? new Date(row.published_at).getTime() : undefined,
@@ -190,7 +232,7 @@ function storyToRow(story: Story, ownerId: string) {
     status: story.status,
     streak: story.streak ?? null,
     last_write_date: story.lastWriteDate ?? null,
-    notes: JSON.stringify(story.notes),
+    notes: JSON.stringify({ categories: story.noteCategories, notes: story.notes }),
     chapters: story.chapters,
     characters: story.characters,
     events: story.events,
@@ -241,9 +283,12 @@ type StoryContextType = {
     file: File
   ) => Promise<{ error?: string }>;
   removeMoodboardImage: (storyId: string, characterId: string, imageId: string) => void;
-  addNote: (storyId: string) => NoteEntry | undefined;
+  addNote: (storyId: string, category?: string) => NoteEntry | undefined;
   updateNote: (storyId: string, noteId: string, updates: Partial<NoteEntry>) => void;
   removeNote: (storyId: string, noteId: string) => void;
+  addNoteCategory: (storyId: string, name: string) => void;
+  renameNoteCategory: (storyId: string, oldName: string, newName: string) => void;
+  removeNoteCategory: (storyId: string, name: string) => void;
   saveVersion: (storyId: string, chapterId: string, label?: string) => void;
   restoreVersion: (storyId: string, chapterId: string, versionId: string) => void;
 };
@@ -742,13 +787,17 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function addNote(storyId: string): NoteEntry | undefined {
+  function addNote(storyId: string, category?: string): NoteEntry | undefined {
     let created: NoteEntry | undefined;
     setStories((prev) =>
       prev.map((s) => {
         if (s.id !== storyId) return s;
-        created = newNote();
-        const next = { ...s, notes: [...s.notes, created], updatedAt: Date.now() };
+        const targetCategory = category?.trim() || s.noteCategories[0] || DEFAULT_NOTE_CATEGORY;
+        created = newNote(targetCategory);
+        const noteCategories = s.noteCategories.includes(targetCategory)
+          ? s.noteCategories
+          : [...s.noteCategories, targetCategory];
+        const next = { ...s, notes: [...s.notes, created], noteCategories, updatedAt: Date.now() };
         persist(next);
         return next;
       })
@@ -784,6 +833,71 @@ export function StoryProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // Folder-style organization for notes. Categories are just labels stored
+  // alongside the notes array (see storyToRow) — deleting or renaming one
+  // reassigns/relabels the notes that reference it rather than deleting them.
+
+  function addNoteCategory(storyId: string, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        if (s.noteCategories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return s;
+        const next = { ...s, noteCategories: [...s.noteCategories, trimmed], updatedAt: Date.now() };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  function renameNoteCategory(storyId: string, oldName: string, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) return;
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        if (!s.noteCategories.includes(oldName)) return s;
+        // If the new name collides with an existing category, merge into it
+        // instead of creating a duplicate.
+        const collision = s.noteCategories.find(
+          (c) => c !== oldName && c.toLowerCase() === trimmed.toLowerCase()
+        );
+        const finalName = collision ?? trimmed;
+        const noteCategories = collision
+          ? s.noteCategories.filter((c) => c !== oldName)
+          : s.noteCategories.map((c) => (c === oldName ? finalName : c));
+        const next = {
+          ...s,
+          noteCategories,
+          notes: s.notes.map((n) => (n.category === oldName ? { ...n, category: finalName } : n)),
+          updatedAt: Date.now(),
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
+  function removeNoteCategory(storyId: string, name: string) {
+    setStories((prev) =>
+      prev.map((s) => {
+        if (s.id !== storyId) return s;
+        if (s.noteCategories.length <= 1) return s; // always keep at least one folder
+        const remaining = s.noteCategories.filter((c) => c !== name);
+        const fallback = remaining[0] ?? DEFAULT_NOTE_CATEGORY;
+        const next = {
+          ...s,
+          noteCategories: remaining,
+          notes: s.notes.map((n) => (n.category === name ? { ...n, category: fallback } : n)),
+          updatedAt: Date.now(),
+        };
+        persist(next);
+        return next;
+      })
+    );
+  }
+
   return (
     <StoryContext.Provider
       value={{
@@ -812,6 +926,9 @@ export function StoryProvider({ children }: { children: ReactNode }) {
         addNote,
         updateNote,
         removeNote,
+        addNoteCategory,
+        renameNoteCategory,
+        removeNoteCategory,
         saveVersion,
         restoreVersion,
       }}
